@@ -3,13 +3,16 @@ use crossterm::{
     execute, terminal,
 };
 use futures::stream::{self, TryStreamExt};
+use simsearch::SimSearch;
 use std::{
     error::Error,
     io::{self, Stdout},
     iter::FromIterator,
+    ops::Range,
     path::PathBuf,
     process::exit,
     str::FromStr,
+    sync::Arc,
     time::Duration,
     unreachable, usize,
 };
@@ -91,7 +94,7 @@ impl InputState {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct SelectionState {
-    selection: Vec<Bookmark>,
+    selection: Vec<usize>,
     highlight: Option<usize>,
 }
 
@@ -111,7 +114,7 @@ impl MoveDirection {
 }
 
 impl SelectionState {
-    fn new(selection: Vec<Bookmark>, highlight: Option<usize>) -> Self {
+    fn new(selection: Vec<usize>, highlight: Option<usize>) -> Self {
         Self {
             selection,
             highlight,
@@ -158,15 +161,19 @@ impl CursorLoc {
 struct AppState {
     input_state: InputState,
     selection_state: SelectionState,
-    bookmarks: Vec<Bookmark>,
+    bookmarks: Vec<Arc<Bookmark>>,
     last_refresh_at: Option<Instant>,
 }
 
 impl AppState {
-    pub fn new(bookmarks: Vec<Bookmark>) -> AppState {
+    pub fn new(bookmarks: Vec<Arc<Bookmark>>) -> AppState {
         let input_state = InputState::default();
         let selection_state = SelectionState::new(
-            bookmarks.clone(),
+            Range {
+                start: 0,
+                end: bookmarks.len() - 1,
+            }
+            .collect(),
             if bookmarks.is_empty() { None } else { Some(0) },
         );
         AppState {
@@ -185,15 +192,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
     execute!(stdout, EnterAlternateScreen)?;
 
     let dummy_bookmarks = vec![
-        Bookmark::new("A".into(), PathBuf::from_str("dest/a")?),
-        Bookmark::new("B".into(), PathBuf::from_str("dest/b")?),
-        Bookmark::new("C".into(), PathBuf::from_str("dest/c")?),
-        Bookmark::new("D".into(), PathBuf::from_str("dest/d")?),
-        Bookmark::new("E".into(), PathBuf::from_str("dest/e")?),
-        Bookmark::new("F".into(), PathBuf::from_str("dest/f")?),
-        Bookmark::new("G".into(), PathBuf::from_str("dest/g")?),
-        Bookmark::new("H".into(), PathBuf::from_str("dest/h")?),
+        Arc::new(Bookmark::new("A".into(), PathBuf::from_str("dest/a")?)),
+        Arc::new(Bookmark::new("AB".into(), PathBuf::from_str("dest/ab")?)),
+        Arc::new(Bookmark::new("AC".into(), PathBuf::from_str("dest/ac")?)),
+        Arc::new(Bookmark::new("B".into(), PathBuf::from_str("dest/b")?)),
+        Arc::new(Bookmark::new("C".into(), PathBuf::from_str("dest/c")?)),
+        Arc::new(Bookmark::new("D".into(), PathBuf::from_str("dest/d")?)),
+        Arc::new(Bookmark::new("E".into(), PathBuf::from_str("dest/e")?)),
+        Arc::new(Bookmark::new("F".into(), PathBuf::from_str("dest/f")?)),
+        Arc::new(Bookmark::new("G".into(), PathBuf::from_str("dest/g")?)),
+        Arc::new(Bookmark::new("H".into(), PathBuf::from_str("dest/h")?)),
     ];
+
+    let mut search = SimSearch::new();
+    for (idx, bm) in dummy_bookmarks.iter().enumerate() {
+        search.insert(idx, &format!("{} {}", bm.name, bm.dest.to_string_lossy()));
+    }
 
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -213,7 +227,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .await?
             .expect("Ticks are always present");
 
-        app_state = main_loop(event, app_state, &mut terminal).await?;
+        app_state = main_loop(event, app_state, &mut terminal, &search).await?;
     }
 }
 
@@ -221,6 +235,7 @@ async fn main_loop(
     event: SystemEvent,
     app_state: AppState,
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
+    search: &SimSearch<usize>,
 ) -> Result<AppState, Box<dyn Error>> {
     let (should_repaint, new_state) = match event {
         SystemEvent::Timer(_) => match app_state.last_refresh_at {
@@ -234,7 +249,7 @@ async fn main_loop(
             Some(_) => (false, app_state.clone()),
         },
         SystemEvent::User(Event::Key(k)) => {
-            let mut new_state = handle_key_event(&app_state, k);
+            let mut new_state = handle_key_event(&app_state, k, search);
             if new_state != app_state {
                 new_state.last_refresh_at = Instant::now().into();
                 (true, new_state)
@@ -258,8 +273,8 @@ async fn main_loop(
     Ok(new_state)
 }
 
-fn handle_key_event(app_state: &AppState, event: KeyEvent) -> AppState {
-    match event {
+fn handle_key_event(app_state: &AppState, event: KeyEvent, search: &SimSearch<usize>) -> AppState {
+    let mut new_state = match event {
         KeyEvent {
             code: KeyCode::Char('c'),
             modifiers: KeyModifiers::CONTROL,
@@ -314,7 +329,28 @@ fn handle_key_event(app_state: &AppState, event: KeyEvent) -> AppState {
             }
         }
         _ => app_state.clone(),
+    };
+
+    if new_state.input_state != app_state.input_state {
+        if new_state.input_state.input.is_empty() {
+            new_state.selection_state.selection = Range {
+                start: 0,
+                end: new_state.bookmarks.len(),
+            }
+            .collect();
+        } else {
+            new_state.selection_state.selection =
+                search.search(&String::from_iter(&new_state.input_state.input));
+        }
+
+        if new_state.selection_state.selection.is_empty() {
+            new_state.selection_state.highlight = None;
+        } else {
+            new_state.selection_state.highlight = Some(0);
+        }
     }
+
+    new_state
 }
 
 fn draw_ui(
@@ -363,9 +399,22 @@ fn draw_ui(
             .constraints([Constraint::Percentage(100)])
             .split(chunks[1])[0];
         let mut rows = Vec::with_capacity(new_state.selection_state.selection.len());
-        for bm in &new_state.selection_state.selection {
-            let bm_name = Cell::from(bm.name.as_ref()).style(Style::default().fg(Color::Green));
-            let bm_dest = Cell::from(bm.dest.to_string_lossy().to_string());
+        for &sel_idx in &new_state.selection_state.selection {
+            assert!(
+                sel_idx < new_state.bookmarks.len(),
+                "Selection index is out of range: {} ∉ ({}, {})",
+                sel_idx,
+                0,
+                new_state.bookmarks.len()
+            );
+            let bm_name = Cell::from(new_state.bookmarks[sel_idx].name.as_ref())
+                .style(Style::default().fg(Color::Green));
+            let bm_dest = Cell::from(
+                new_state.bookmarks[sel_idx]
+                    .dest
+                    .to_string_lossy()
+                    .to_string(),
+            );
             let row = Row::new(vec![bm_name, bm_dest]);
             rows.push(row);
         }
