@@ -3,7 +3,8 @@ use crossterm::{
     execute, terminal,
 };
 use futures::stream::{self, TryStreamExt};
-use simsearch::SimSearch;
+use fuzzy_matcher::skim::SkimMatcherV2;
+use fuzzy_matcher::FuzzyMatcher;
 use std::{
     error::Error,
     io::{self, Stdout},
@@ -23,7 +24,7 @@ use tui::{
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    text::Span,
+    text::{Span, Spans},
     widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState},
     Terminal,
 };
@@ -198,16 +199,21 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Arc::new(Bookmark::new("B".into(), PathBuf::from_str("dest/b")?)),
         Arc::new(Bookmark::new("C".into(), PathBuf::from_str("dest/c")?)),
         Arc::new(Bookmark::new("D".into(), PathBuf::from_str("dest/d")?)),
+        Arc::new(Bookmark::new(
+            "dotfiles".into(),
+            PathBuf::from_str("dest/dotfiles")?,
+        )),
+        Arc::new(Bookmark::new(
+            "init.el".into(),
+            PathBuf::from_str("dest/dotfiles/emacs.d/init.el")?,
+        )),
         Arc::new(Bookmark::new("E".into(), PathBuf::from_str("dest/e")?)),
         Arc::new(Bookmark::new("F".into(), PathBuf::from_str("dest/f")?)),
         Arc::new(Bookmark::new("G".into(), PathBuf::from_str("dest/g")?)),
         Arc::new(Bookmark::new("H".into(), PathBuf::from_str("dest/h")?)),
     ];
 
-    let mut search = SimSearch::new();
-    for (idx, bm) in dummy_bookmarks.iter().enumerate() {
-        search.insert(idx, &format!("{} {}", bm.name, bm.dest.to_string_lossy()));
-    }
+    let matcher = SkimMatcherV2::default();
 
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -227,7 +233,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .await?
             .expect("Ticks are always present");
 
-        app_state = main_loop(event, app_state, &mut terminal, &search).await?;
+        app_state = main_loop(event, app_state, &mut terminal, &matcher).await?;
     }
 }
 
@@ -235,7 +241,7 @@ async fn main_loop(
     event: SystemEvent,
     app_state: AppState,
     terminal: &mut Terminal<CrosstermBackend<Stdout>>,
-    search: &SimSearch<usize>,
+    matcher: &SkimMatcherV2,
 ) -> Result<AppState, Box<dyn Error>> {
     let (should_repaint, new_state) = match event {
         SystemEvent::Timer(_) => match app_state.last_refresh_at {
@@ -249,7 +255,7 @@ async fn main_loop(
             Some(_) => (false, app_state.clone()),
         },
         SystemEvent::User(Event::Key(k)) => {
-            let mut new_state = handle_key_event(&app_state, k, search);
+            let mut new_state = handle_key_event(&app_state, k, matcher);
             if new_state != app_state {
                 new_state.last_refresh_at = Instant::now().into();
                 (true, new_state)
@@ -273,7 +279,7 @@ async fn main_loop(
     Ok(new_state)
 }
 
-fn handle_key_event(app_state: &AppState, event: KeyEvent, search: &SimSearch<usize>) -> AppState {
+fn handle_key_event(app_state: &AppState, event: KeyEvent, matcher: &SkimMatcherV2) -> AppState {
     let mut new_state = match event {
         KeyEvent {
             code: KeyCode::Char('c'),
@@ -339,8 +345,8 @@ fn handle_key_event(app_state: &AppState, event: KeyEvent, search: &SimSearch<us
             }
             .collect();
         } else {
-            new_state.selection_state.selection =
-                search.search(&String::from_iter(&new_state.input_state.input));
+            let matches = find_matches(matcher, &new_state);
+            new_state.selection_state.selection = matches;
         }
 
         if new_state.selection_state.selection.is_empty() {
@@ -351,6 +357,36 @@ fn handle_key_event(app_state: &AppState, event: KeyEvent, search: &SimSearch<us
     }
 
     new_state
+}
+
+fn find_matches(matcher: &SkimMatcherV2, state: &AppState) -> Vec<usize> {
+    let pattern = String::from_iter(&state.input_state.input);
+    // Rank all bookmarks using fuzzy matcher
+    let mut scores: Vec<_> = state
+        .bookmarks
+        .iter()
+        .map(|bm| {
+            matcher.fuzzy_match(
+                &format!("{} {}", bm.name, bm.dest.to_string_lossy()),
+                &pattern,
+            )
+        })
+        .enumerate()
+        .collect();
+    // Reverse sort the scores
+    scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+
+    // Pick the matches starting from the "best" one
+    let mut matches = Vec::new();
+    for (idx, score) in &scores {
+        if let &Some(score) = score {
+            if score > 0 {
+                matches.push(*idx);
+            }
+        }
+    }
+
+    matches
 }
 
 fn draw_ui(
@@ -407,14 +443,18 @@ fn draw_ui(
                 0,
                 new_state.bookmarks.len()
             );
-            let bm_name = Cell::from(new_state.bookmarks[sel_idx].name.as_ref())
-                .style(Style::default().fg(Color::Green));
-            let bm_dest = Cell::from(
-                new_state.bookmarks[sel_idx]
-                    .dest
-                    .to_string_lossy()
-                    .to_string(),
+            // Render bookmark name with some colorization
+            let bm_name = colorize_match(
+                &new_state.bookmarks[sel_idx].name,
+                &new_state.input_state.input,
             );
+            let bm_name = Cell::from(bm_name).style(Style::default().fg(Color::Green));
+            // Render bookmark dest with some colorization
+            let bm_dest = colorize_match(
+                &new_state.bookmarks[sel_idx].dest.to_string_lossy(),
+                &new_state.input_state.input,
+            );
+            let bm_dest = Cell::from(bm_dest);
             let row = Row::new(vec![bm_name, bm_dest]);
             rows.push(row);
         }
@@ -439,6 +479,62 @@ fn draw_ui(
     terminal.show_cursor()?;
 
     Ok(())
+}
+
+fn colorize_match(str: &str, input: &[char]) -> Spans<'static> {
+    let mut spans = Vec::new();
+    let mut cur_span: Option<(bool, Vec<char>)> = None;
+    let mut match_idx = 0;
+
+    for ch in str.chars() {
+        if match_idx < input.len()
+            && ch.to_lowercase().to_string() == input[match_idx].to_lowercase().to_string()
+        {
+            // We have a match
+            match &mut cur_span {
+                None => cur_span = Some((true, vec![ch])),
+                Some(existing_span) => {
+                    if existing_span.0 {
+                        existing_span.1.push(ch);
+                    } else {
+                        spans.push(colorize_span(existing_span));
+                        cur_span = Some((true, vec![ch]));
+                    }
+                }
+            }
+
+            match_idx += 1;
+        } else {
+            // No match
+            match &mut cur_span {
+                None => cur_span = Some((false, vec![ch])),
+                Some(existing_span) => {
+                    if !existing_span.0 {
+                        existing_span.1.push(ch);
+                    } else {
+                        spans.push(colorize_span(existing_span));
+                        cur_span = Some((false, vec![ch]));
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(span) = cur_span {
+        spans.push(colorize_span(&span));
+    }
+
+    Spans::from(spans)
+}
+
+fn colorize_span(span: &(bool, Vec<char>)) -> Span<'static> {
+    let (is_match, text) = span;
+    let str = String::from_iter(text);
+    if *is_match {
+        Span::styled(str, Style::default().fg(Color::Red))
+    } else {
+        Span::raw(str)
+    }
 }
 
 #[allow(unused_must_use)] // this is exit anyway
