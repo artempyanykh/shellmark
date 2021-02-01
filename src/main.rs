@@ -3,15 +3,16 @@ use crossterm::{
     event::{Event, EventStream, KeyCode, KeyEvent, KeyModifiers},
     execute, terminal,
 };
-use directories::ProjectDirs;
+use directories::{ProjectDirs, UserDirs};
 use fs::OpenOptions;
 use futures::stream::{self, TryStreamExt};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use serde::{Deserialize, Serialize};
 use std::{
+    env,
     error::Error,
-    io::{self, Stdout},
+    io::{self, SeekFrom, Stdout},
     iter::FromIterator,
     ops::Range,
     path::{Path, PathBuf},
@@ -24,11 +25,11 @@ use std::{
 use terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use tokio::{
     fs::{self, File},
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt},
     time::Instant,
 };
 use tokio_stream::StreamExt;
-use tracing::{error, info, Level};
+use tracing::{error, info, warn, Level};
 use tracing_subscriber::EnvFilter;
 use tui::{
     backend::CrosstermBackend,
@@ -53,20 +54,27 @@ struct Opts {
 
 #[derive(Clap)]
 enum Command {
-    /// Add bookmarks
+    /// (alias: a) Add bookmarks
     Add(AddCmd),
-    /// (default) Interactively find and select bookmarks
+    /// (default, alias: b) Interactively find and select bookmarks
     Browse(BrowseCmd),
 }
 
 #[derive(Clap)]
+#[clap(alias = "a")]
 struct AddCmd {
     #[clap(short, long)]
     /// Replace the bookmark's destination when similarly named bookmark exists
     force: bool,
+    /// Path to the destination file or directory (default: current directory)
+    dest: Option<String>,
+    /// Name of the bookmark (default: the name of the destination)
+    #[clap(short, long)]
+    name: Option<String>,
 }
 
 #[derive(Clap)]
+#[clap(alias = "b")]
 struct BrowseCmd {}
 
 #[derive(Debug, Clone, Copy)]
@@ -238,8 +246,50 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }
 }
 
-async fn add_cmd(add_cmd_opts: AddCmd, bookmarks_file: File) -> Result<(), Box<dyn Error>> {
-    unimplemented!()
+async fn add_cmd(add_cmd_opts: AddCmd, mut bookmarks_file: File) -> Result<(), Box<dyn Error>> {
+    let dest = match add_cmd_opts.dest {
+        Some(path_str) => fs::canonicalize(&path_str).await?,
+        None => env::current_dir()?,
+    };
+    let name = add_cmd_opts.name.unwrap_or(
+        dest.file_name()
+            .expect("Absolute path doesn't have a file name")
+            .to_string_lossy()
+            .to_string(),
+    );
+    let mut bookmarks = read_bookmarks(&mut bookmarks_file).await;
+    let existing = bookmarks
+        .iter()
+        .enumerate()
+        .find(|(idx, bm)| bm.name == name);
+    let should_update = match existing {
+        None => {
+            bookmarks.push(Bookmark::new(name.clone(), dest.clone()));
+            true
+        }
+        Some((idx, existing)) => {
+            if add_cmd_opts.force {
+                bookmarks.remove(idx);
+                bookmarks.push(Bookmark::new(name.clone(), dest.clone()));
+                true
+            } else {
+                warn!(
+                    "A bookmark with name {} already exists pointing at: {}",
+                    existing.name,
+                    existing.dest.display()
+                );
+                info!("Consider using `--force` to replace the bookmark, or --name to give it a different name");
+                false
+            }
+        }
+    };
+
+    if should_update {
+        info!("Added a bookmark {} pointing at {}", name, dest.display());
+        write_bookmarks(&mut bookmarks_file, bookmarks).await;
+    }
+
+    Ok(())
 }
 
 async fn get_or_create_data_dir() -> PathBuf {
@@ -314,11 +364,24 @@ async fn read_bookmarks(bookmarks_file: &mut File) -> Vec<Bookmark> {
 }
 
 async fn write_bookmarks(bookmarks_file: &mut File, bookmarks: Vec<Bookmark>) {
-    let content = serde_json::to_string(&bookmarks).expect("Couldn't serialize bookmarks to JSON");
+    let content =
+        serde_json::to_string_pretty(&bookmarks).expect("Couldn't serialize bookmarks to JSON");
+    bookmarks_file
+        .set_len(0)
+        .await
+        .expect("Couldn't truncate bookmarks file");
+    bookmarks_file
+        .seek(SeekFrom::Start(0))
+        .await
+        .expect("Couldn't see the beginning of the file");
     bookmarks_file
         .write_all(content.as_bytes())
         .await
         .expect("Couldn't write serialized bookmarks to the bookmarks file");
+    bookmarks_file
+        .flush()
+        .await
+        .expect("Couldn't flush bookmark update");
 }
 
 async fn browse_cmd(mut bookmarks_file: File) -> Result<(), Box<dyn Error>> {
@@ -330,27 +393,6 @@ async fn browse_cmd(mut bookmarks_file: File) -> Result<(), Box<dyn Error>> {
     terminal::enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
-
-    // let dummy_bookmarks = vec![
-    //     Arc::new(Bookmark::new("A".into(), PathBuf::from_str("dest/a")?)),
-    //     Arc::new(Bookmark::new("AB".into(), PathBuf::from_str("dest/ab")?)),
-    //     Arc::new(Bookmark::new("AC".into(), PathBuf::from_str("dest/ac")?)),
-    //     Arc::new(Bookmark::new("B".into(), PathBuf::from_str("dest/b")?)),
-    //     Arc::new(Bookmark::new("C".into(), PathBuf::from_str("dest/c")?)),
-    //     Arc::new(Bookmark::new("D".into(), PathBuf::from_str("dest/d")?)),
-    //     Arc::new(Bookmark::new(
-    //         "dotfiles".into(),
-    //         PathBuf::from_str("dest/dotfiles")?,
-    //     )),
-    //     Arc::new(Bookmark::new(
-    //         "init.el".into(),
-    //         PathBuf::from_str("dest/dotfiles/emacs.d/init.el")?,
-    //     )),
-    //     Arc::new(Bookmark::new("E".into(), PathBuf::from_str("dest/e")?)),
-    //     Arc::new(Bookmark::new("F".into(), PathBuf::from_str("dest/f")?)),
-    //     Arc::new(Bookmark::new("G".into(), PathBuf::from_str("dest/g")?)),
-    //     Arc::new(Bookmark::new("H".into(), PathBuf::from_str("dest/h")?)),
-    // ];
 
     let matcher = SkimMatcherV2::default();
 
