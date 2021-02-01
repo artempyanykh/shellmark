@@ -3,15 +3,18 @@ use crossterm::{
     event::{Event, EventStream, KeyCode, KeyEvent, KeyModifiers},
     execute, terminal,
 };
+use directories::ProjectDirs;
+use fs::OpenOptions;
 use futures::stream::{self, TryStreamExt};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
+use serde::{Deserialize, Serialize};
 use std::{
     error::Error,
     io::{self, Stdout},
     iter::FromIterator,
     ops::Range,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process::exit,
     str::FromStr,
     sync::Arc,
@@ -19,8 +22,14 @@ use std::{
     unimplemented, unreachable, usize,
 };
 use terminal::{EnterAlternateScreen, LeaveAlternateScreen};
-use tokio::time::Instant;
+use tokio::{
+    fs::{self, File},
+    io::{AsyncReadExt, AsyncWriteExt},
+    time::Instant,
+};
 use tokio_stream::StreamExt;
+use tracing::{error, info, Level};
+use tracing_subscriber::EnvFilter;
 use tui::{
     backend::CrosstermBackend,
     layout::{Alignment, Constraint, Direction, Layout},
@@ -81,7 +90,7 @@ impl From<Tick> for SystemEvent {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct Bookmark {
     name: String,
     dest: PathBuf,
@@ -199,7 +208,7 @@ impl AppState {
         let selection_state = SelectionState::new(
             Range {
                 start: 0,
-                end: bookmarks.len() - 1,
+                end: bookmarks.len(),
             }
             .collect(),
             if bookmarks.is_empty() { None } else { Some(0) },
@@ -215,49 +224,139 @@ impl AppState {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    let filter = EnvFilter::default().add_directive(Level::INFO.into());
+    tracing_subscriber::fmt().with_env_filter(filter).init();
+
     let opts = Opts::parse();
 
+    let data_dir = get_or_create_data_dir().await;
+    let bookmarks_file = get_or_create_bookmarks_file(&data_dir).await;
+
     match opts.command {
-        Some(Command::Add(add_cmd_opts)) => add_cmd(add_cmd_opts).await,
-        Some(Command::Browse(_)) | None => browse_cmd().await,
+        Some(Command::Add(add_cmd_opts)) => add_cmd(add_cmd_opts, bookmarks_file).await,
+        Some(Command::Browse(_)) | None => browse_cmd(bookmarks_file).await,
     }
 }
 
-async fn add_cmd(add_cmd_opts: AddCmd) -> Result<(), Box<dyn Error>> {
+async fn add_cmd(add_cmd_opts: AddCmd, bookmarks_file: File) -> Result<(), Box<dyn Error>> {
     unimplemented!()
 }
 
-async fn browse_cmd() -> Result<(), Box<dyn Error>> {
+async fn get_or_create_data_dir() -> PathBuf {
+    let proj_dirs = ProjectDirs::from("one", "arr", "shellmark");
+    let proj_dirs = match proj_dirs {
+        Some(dirs) => dirs,
+        None => {
+            error!("Could not find a HOME dir. Make sure a valid HOME path is configured before using the app.");
+            exit(1)
+        }
+    };
+    let data_local_dir = proj_dirs.data_local_dir();
+    match fs::metadata(data_local_dir).await.map_err(|err| err.kind()) {
+        Err(std::io::ErrorKind::NotFound) => {
+            info!(
+                "Creating a data folder for shellmark at: {}",
+                data_local_dir.to_string_lossy()
+            );
+            match fs::create_dir_all(data_local_dir).await {
+                Err(err) => {
+                    error!("Couldn't create a data folder for shellmark. Please, check the access rights.");
+                    error!("{}", err);
+                    exit(1)
+                }
+                Ok(_) => {
+                    info!("Successfully created the data folder!");
+                }
+            }
+        }
+        Err(_) => {
+            error!("Couldn't access app's data dir. Please, check the access rights.");
+            exit(1)
+        }
+        Ok(_) => (),
+    }
+
+    data_local_dir.to_path_buf()
+}
+
+async fn get_or_create_bookmarks_file(data_dir: &Path) -> File {
+    match OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(data_dir.join("bookmarks.json"))
+        .await
+    {
+        Err(err) => {
+            error!("Couldn't open/create a bookmarks file. Please, check the access rights.");
+            error!("{}", err);
+            exit(1)
+        }
+        Ok(f) => f,
+    }
+}
+
+async fn read_bookmarks(bookmarks_file: &mut File) -> Vec<Bookmark> {
+    let mut content = String::new();
+    match bookmarks_file.read_to_string(&mut content).await {
+        Err(err) => {
+            error!("Couldn't read bookmarks file: {}", err);
+            exit(1)
+        }
+        Ok(_) => (),
+    }
+
+    if content.trim().is_empty() {
+        Vec::new()
+    } else {
+        serde_json::from_str(&content).expect("Couldn't parse bookmarks JSON")
+    }
+}
+
+async fn write_bookmarks(bookmarks_file: &mut File, bookmarks: Vec<Bookmark>) {
+    let content = serde_json::to_string(&bookmarks).expect("Couldn't serialize bookmarks to JSON");
+    bookmarks_file
+        .write_all(content.as_bytes())
+        .await
+        .expect("Couldn't write serialized bookmarks to the bookmarks file");
+}
+
+async fn browse_cmd(mut bookmarks_file: File) -> Result<(), Box<dyn Error>> {
+    let bookmarks = read_bookmarks(&mut bookmarks_file).await;
+    drop(bookmarks_file);
+
+    let bookmarks: Vec<Arc<Bookmark>> = bookmarks.into_iter().map(Arc::new).collect();
+
     terminal::enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
 
-    let dummy_bookmarks = vec![
-        Arc::new(Bookmark::new("A".into(), PathBuf::from_str("dest/a")?)),
-        Arc::new(Bookmark::new("AB".into(), PathBuf::from_str("dest/ab")?)),
-        Arc::new(Bookmark::new("AC".into(), PathBuf::from_str("dest/ac")?)),
-        Arc::new(Bookmark::new("B".into(), PathBuf::from_str("dest/b")?)),
-        Arc::new(Bookmark::new("C".into(), PathBuf::from_str("dest/c")?)),
-        Arc::new(Bookmark::new("D".into(), PathBuf::from_str("dest/d")?)),
-        Arc::new(Bookmark::new(
-            "dotfiles".into(),
-            PathBuf::from_str("dest/dotfiles")?,
-        )),
-        Arc::new(Bookmark::new(
-            "init.el".into(),
-            PathBuf::from_str("dest/dotfiles/emacs.d/init.el")?,
-        )),
-        Arc::new(Bookmark::new("E".into(), PathBuf::from_str("dest/e")?)),
-        Arc::new(Bookmark::new("F".into(), PathBuf::from_str("dest/f")?)),
-        Arc::new(Bookmark::new("G".into(), PathBuf::from_str("dest/g")?)),
-        Arc::new(Bookmark::new("H".into(), PathBuf::from_str("dest/h")?)),
-    ];
+    // let dummy_bookmarks = vec![
+    //     Arc::new(Bookmark::new("A".into(), PathBuf::from_str("dest/a")?)),
+    //     Arc::new(Bookmark::new("AB".into(), PathBuf::from_str("dest/ab")?)),
+    //     Arc::new(Bookmark::new("AC".into(), PathBuf::from_str("dest/ac")?)),
+    //     Arc::new(Bookmark::new("B".into(), PathBuf::from_str("dest/b")?)),
+    //     Arc::new(Bookmark::new("C".into(), PathBuf::from_str("dest/c")?)),
+    //     Arc::new(Bookmark::new("D".into(), PathBuf::from_str("dest/d")?)),
+    //     Arc::new(Bookmark::new(
+    //         "dotfiles".into(),
+    //         PathBuf::from_str("dest/dotfiles")?,
+    //     )),
+    //     Arc::new(Bookmark::new(
+    //         "init.el".into(),
+    //         PathBuf::from_str("dest/dotfiles/emacs.d/init.el")?,
+    //     )),
+    //     Arc::new(Bookmark::new("E".into(), PathBuf::from_str("dest/e")?)),
+    //     Arc::new(Bookmark::new("F".into(), PathBuf::from_str("dest/f")?)),
+    //     Arc::new(Bookmark::new("G".into(), PathBuf::from_str("dest/g")?)),
+    //     Arc::new(Bookmark::new("H".into(), PathBuf::from_str("dest/h")?)),
+    // ];
 
     let matcher = SkimMatcherV2::default();
 
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
-    let mut app_state = AppState::new(dummy_bookmarks);
+    let mut app_state = AppState::new(bookmarks);
 
     // Setup an event loop
     let ticks = stream::repeat(Tick)
