@@ -260,9 +260,8 @@ async fn add_cmd(add_cmd_opts: AddCmd, mut bookmarks_file: File) -> Result<(), B
     };
     let name = add_cmd_opts.name.unwrap_or(
         dest.file_name()
-            .expect("Absolute path doesn't have a file name")
-            .to_string_lossy()
-            .to_string(),
+            .map(|f| f.to_string_lossy().to_string())
+            .unwrap_or(friendly_path(&dest)),
     );
     let mut bookmarks = read_bookmarks(&mut bookmarks_file).await;
     let existing = bookmarks.iter().enumerate().find(|(_, bm)| bm.name == name);
