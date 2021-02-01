@@ -726,6 +726,7 @@ dependencies = [
  "directories",
  "futures",
  "fuzzy-matcher",
+ "once_cell",
  "serde",
  "serde_json",
  "tokio",

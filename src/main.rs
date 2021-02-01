@@ -8,6 +8,7 @@ use fs::OpenOptions;
 use futures::stream::{self, TryStreamExt};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::{
     env,
@@ -17,10 +18,9 @@ use std::{
     ops::Range,
     path::{Path, PathBuf},
     process::exit,
-    str::FromStr,
     sync::Arc,
     time::Duration,
-    unimplemented, unreachable, usize,
+    unreachable, usize,
 };
 use terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use tokio::{
@@ -43,6 +43,14 @@ use tui::{
 // Not strictly needed now as there are no background activities not related to terminal events
 // But let's keep just in case
 const REFRESH_RATE_MS: Duration = Duration::from_millis(1000);
+
+static USER_DIRS: Lazy<UserDirs> = Lazy::new(|| {
+    UserDirs::new().expect("Couldn't locate HOME. Please, make sure the shell is properly set up")
+});
+static PROJECT_DIRS: Lazy<ProjectDirs> = Lazy::new(|| {
+    ProjectDirs::from("one", "arr", "shellmark")
+        .expect("Couldn't locate HOME. Please, make sure the shell is properly set up")
+});
 
 #[derive(Clap)]
 #[clap(version = crate_version!())]
@@ -234,7 +242,6 @@ impl AppState {
 async fn main() -> Result<(), Box<dyn Error>> {
     let filter = EnvFilter::default().add_directive(Level::INFO.into());
     tracing_subscriber::fmt().with_env_filter(filter).init();
-
     let opts = Opts::parse();
 
     let data_dir = get_or_create_data_dir().await;
@@ -258,10 +265,7 @@ async fn add_cmd(add_cmd_opts: AddCmd, mut bookmarks_file: File) -> Result<(), B
             .to_string(),
     );
     let mut bookmarks = read_bookmarks(&mut bookmarks_file).await;
-    let existing = bookmarks
-        .iter()
-        .enumerate()
-        .find(|(idx, bm)| bm.name == name);
+    let existing = bookmarks.iter().enumerate().find(|(_, bm)| bm.name == name);
     let should_update = match existing {
         None => {
             bookmarks.push(Bookmark::new(name.clone(), dest.clone()));
@@ -276,7 +280,7 @@ async fn add_cmd(add_cmd_opts: AddCmd, mut bookmarks_file: File) -> Result<(), B
                 warn!(
                     "A bookmark with name {} already exists pointing at: {}",
                     existing.name,
-                    existing.dest.display()
+                    friendly_path(&existing.dest)
                 );
                 info!("Consider using `--force` to replace the bookmark, or --name to give it a different name");
                 false
@@ -285,7 +289,11 @@ async fn add_cmd(add_cmd_opts: AddCmd, mut bookmarks_file: File) -> Result<(), B
     };
 
     if should_update {
-        info!("Added a bookmark {} pointing at {}", name, dest.display());
+        info!(
+            "Added a bookmark {} pointing at {}",
+            name,
+            friendly_path(&dest)
+        );
         write_bookmarks(&mut bookmarks_file, bookmarks).await;
     }
 
@@ -293,20 +301,13 @@ async fn add_cmd(add_cmd_opts: AddCmd, mut bookmarks_file: File) -> Result<(), B
 }
 
 async fn get_or_create_data_dir() -> PathBuf {
-    let proj_dirs = ProjectDirs::from("one", "arr", "shellmark");
-    let proj_dirs = match proj_dirs {
-        Some(dirs) => dirs,
-        None => {
-            error!("Could not find a HOME dir. Make sure a valid HOME path is configured before using the app.");
-            exit(1)
-        }
-    };
+    let proj_dirs = &PROJECT_DIRS;
     let data_local_dir = proj_dirs.data_local_dir();
     match fs::metadata(data_local_dir).await.map_err(|err| err.kind()) {
         Err(std::io::ErrorKind::NotFound) => {
             info!(
                 "Creating a data folder for shellmark at: {}",
-                data_local_dir.to_string_lossy()
+                friendly_path(data_local_dir)
             );
             match fs::create_dir_all(data_local_dir).await {
                 Err(err) => {
@@ -548,7 +549,7 @@ fn find_matches(matcher: &SkimMatcherV2, state: &AppState) -> Vec<usize> {
         .iter()
         .map(|bm| {
             matcher.fuzzy_match(
-                &format!("{} {}", bm.name, bm.dest.to_string_lossy()),
+                &format!("{} {}", bm.name, friendly_path(&bm.dest)),
                 &pattern,
             )
         })
@@ -632,7 +633,7 @@ fn draw_ui(
             let bm_name = Cell::from(bm_name).style(Style::default().fg(Color::Green));
             // Render bookmark dest with some colorization
             let bm_dest = colorize_match(
-                &new_state.bookmarks[sel_idx].dest.to_string_lossy(),
+                &friendly_path(&new_state.bookmarks[sel_idx].dest),
                 &new_state.input_state.input,
             );
             let bm_dest = Cell::from(bm_dest);
@@ -722,4 +723,25 @@ fn colorize_span(span: &(bool, Vec<char>)) -> Span<'static> {
 fn exit_app() {
     execute!(io::stdout(), LeaveAlternateScreen);
     exit(0)
+}
+
+fn friendly_path(path: &Path) -> String {
+    // Strip out the "extended filename" prefix on Windows
+    // https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file#win32-file-namespaces
+    let path = match path.to_string_lossy().strip_prefix("\\\\?\\") {
+        Some(rem) => PathBuf::from(rem),
+        _ => path.to_path_buf(),
+    };
+
+    let home = USER_DIRS.home_dir();
+    let home_rel_path = path.strip_prefix(home).unwrap_or(&path);
+    let friendly_name = if home_rel_path.is_relative() {
+        PathBuf::from("~")
+            .join(home_rel_path)
+            .to_string_lossy()
+            .to_string()
+    } else {
+        home_rel_path.to_string_lossy().to_string()
+    };
+    friendly_name
 }
