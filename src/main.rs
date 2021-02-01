@@ -1,3 +1,4 @@
+use clap::{crate_version, Clap};
 use crossterm::{
     event::{Event, EventStream, KeyCode, KeyEvent, KeyModifiers},
     execute, terminal,
@@ -15,7 +16,7 @@ use std::{
     str::FromStr,
     sync::Arc,
     time::Duration,
-    unreachable, usize,
+    unimplemented, unreachable, usize,
 };
 use terminal::{EnterAlternateScreen, LeaveAlternateScreen};
 use tokio::time::Instant;
@@ -32,6 +33,32 @@ use tui::{
 // Not strictly needed now as there are no background activities not related to terminal events
 // But let's keep just in case
 const REFRESH_RATE_MS: Duration = Duration::from_millis(1000);
+
+#[derive(Clap)]
+#[clap(version = crate_version!())]
+/// Cross-platform CLI bookmarks manager.
+struct Opts {
+    #[clap(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Clap)]
+enum Command {
+    /// Add bookmarks
+    Add(AddCmd),
+    /// (default) Interactively find and select bookmarks
+    Browse(BrowseCmd),
+}
+
+#[derive(Clap)]
+struct AddCmd {
+    #[clap(short, long)]
+    /// Replace the bookmark's destination when similarly named bookmark exists
+    force: bool,
+}
+
+#[derive(Clap)]
+struct BrowseCmd {}
 
 #[derive(Debug, Clone, Copy)]
 struct Tick;
@@ -188,6 +215,19 @@ impl AppState {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    let opts = Opts::parse();
+
+    match opts.command {
+        Some(Command::Add(add_cmd_opts)) => add_cmd(add_cmd_opts).await,
+        Some(Command::Browse(_)) | None => browse_cmd().await,
+    }
+}
+
+async fn add_cmd(add_cmd_opts: AddCmd) -> Result<(), Box<dyn Error>> {
+    unimplemented!()
+}
+
+async fn browse_cmd() -> Result<(), Box<dyn Error>> {
     terminal::enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
