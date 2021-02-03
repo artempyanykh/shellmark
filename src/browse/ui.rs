@@ -10,7 +10,10 @@ use tui::{
 
 use super::*;
 use crate::storage::friendly_path;
-use std::{io::Stdout, iter::FromIterator};
+use std::{
+    io::{Stderr, Stdout},
+    iter::FromIterator,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CursorLoc {
@@ -25,7 +28,7 @@ impl CursorLoc {
 }
 
 pub fn draw_ui(
-    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
+    terminal: &mut Terminal<CrosstermBackend<Stderr>>,
     new_state: &AppState,
 ) -> Result<()> {
     let mut cursor_loc = CursorLoc::new(0, 0);

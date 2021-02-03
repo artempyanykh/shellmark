@@ -1,5 +1,5 @@
 use std::{
-    io::{self, Stdout},
+    io::{self, Stderr, Stdout},
     ops::Range,
     sync::Arc,
     time::Duration,
@@ -31,7 +31,7 @@ pub async fn browse_cmd() -> Result<()> {
     let output = interact().await?;
     restore_terminal()?;
     if let Some(output) = output {
-        println!("{}", output);
+        print!("{}", output);
     }
     Ok(())
 }
@@ -40,7 +40,7 @@ async fn interact() -> Result<Option<String>> {
     let bookmarks = read_bookmarks().await?;
     let matcher = SkimMatcherV2::default();
 
-    let backend = CrosstermBackend::new(io::stdout());
+    let backend = CrosstermBackend::new(io::stderr());
     let mut terminal = Terminal::new(backend)?;
 
     // Setup an event loop
@@ -81,17 +81,17 @@ async fn interact() -> Result<Option<String>> {
 
 fn setup_terminal() -> Result<()> {
     crossterm::terminal::enable_raw_mode()?;
-    Ok(execute!(io::stdout(), EnterAlternateScreen)?)
+    Ok(execute!(io::stderr(), EnterAlternateScreen)?)
 }
 
 fn restore_terminal() -> Result<()> {
-    Ok(execute!(io::stdout(), LeaveAlternateScreen)?)
+    Ok(execute!(io::stderr(), LeaveAlternateScreen)?)
 }
 
 async fn event_loop(
     event: SystemEvent,
     app_state: AppState,
-    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
+    terminal: &mut Terminal<CrosstermBackend<Stderr>>,
     matcher: &SkimMatcherV2,
 ) -> Result<AppState> {
     let (should_repaint, new_state) = match event {
