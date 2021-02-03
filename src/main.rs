@@ -20,7 +20,10 @@ use crate::browse::browse_cmd;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     let filter = EnvFilter::default().add_directive(Level::INFO.into());
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_writer(std::io::stderr)
+        .init();
     let opts = cli::Opts::parse();
 
     match opts.command {
