@@ -187,11 +187,13 @@ fn handle_key_event(app_state: &AppState, event: KeyEvent, matcher: &SkimMatcher
                 app_state.clone()
             }
         }
-        // Ctrl-k to delete selected bookmark
+        // Ctrl-k (or Ctrl-Shift-k, or Ctrl-K) to delete selected bookmark
         KeyEvent {
-            code: KeyCode::Char('k'),
+            code: KeyCode::Char(k),
             modifiers: m,
-        } if m == KeyModifiers::CONTROL | KeyModifiers::SHIFT => {
+        } if (k == 'k' || k == 'K')
+            && (m == KeyModifiers::CONTROL || m == KeyModifiers::CONTROL | KeyModifiers::SHIFT) =>
+        {
             if let Some(bm) = app_state.selected_bookmark() {
                 AppState {
                     pending_command: Some(Command::DeleteBookmark(bm.clone())),
