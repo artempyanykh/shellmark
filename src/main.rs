@@ -8,6 +8,7 @@ mod storage;
 use anyhow::Result;
 use clap::Clap;
 
+use std::default::Default;
 use std::error::Error;
 
 use tracing::Level;
@@ -24,7 +25,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     match opts.command {
         Some(cli::Command::Add(add_cmd_opts)) => add_cmd(add_cmd_opts).await?,
-        Some(cli::Command::Browse(_)) | None => browse_cmd().await?,
+        Some(cli::Command::Browse(browse_cmd_opts)) => browse_cmd(opts.out_type).await?,
+        None => browse_cmd(opts.out_type).await?,
     }
 
     Ok(())

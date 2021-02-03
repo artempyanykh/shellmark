@@ -18,10 +18,7 @@ static PROJECT_DIRS: Lazy<ProjectDirs> = Lazy::new(|| {
 pub fn friendly_path(path: &Path) -> String {
     // Strip out the "extended filename" prefix on Windows
     // https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file#win32-file-namespaces
-    let path = match path.to_string_lossy().strip_prefix("\\\\?\\") {
-        Some(rem) => PathBuf::from(rem),
-        _ => path.to_path_buf(),
-    };
+    let path = simplify_path(path);
 
     let home = USER_DIRS.home_dir();
     let home_rel_path = path.strip_prefix(home).unwrap_or(&path);
@@ -34,6 +31,16 @@ pub fn friendly_path(path: &Path) -> String {
         home_rel_path.to_string_lossy().to_string()
     };
     friendly_name
+}
+
+#[cfg(target_os = "unix")]
+pub fn simplify_path(path: &Path) -> &Path {
+    path
+}
+
+#[cfg(target_os = "windows")]
+pub fn simplify_path(path: &Path) -> &Path {
+    dunce::simplified(path)
 }
 
 pub async fn get_or_create_data_dir() -> Result<PathBuf> {

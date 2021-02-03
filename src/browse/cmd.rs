@@ -21,17 +21,27 @@ use tui::{backend::CrosstermBackend, Terminal};
 use super::*;
 use crate::{
     bookmarks::{read_bookmarks, write_bookmarks},
+    cli::OutType,
     search::find_matches,
+    storage::simplify_path,
 };
 
-pub async fn browse_cmd() -> Result<()> {
+pub async fn browse_cmd(out_type: OutType) -> Result<()> {
     setup_terminal()?;
     let output = interact().await?;
     restore_terminal()?;
     if let Some(output) = output {
-        print!("{}", output);
+        print!("{}", prepare_output(&output, out_type));
     }
     Ok(())
+}
+
+fn prepare_output(output: &str, out_type: OutType) -> String {
+    match out_type {
+        OutType::Plain => output.to_string(),
+        OutType::Posix => format!("cd '{}'", output),
+        OutType::PowerShell => format!("Push-Location '{}'", output),
+    }
 }
 
 async fn interact() -> Result<Option<String>> {
@@ -259,7 +269,10 @@ async fn handle_command(mut state: AppState) -> Result<(AppState, Option<String>
                 } else {
                     path
                 };
-                Ok((state, Some(dest.to_string_lossy().to_string())))
+                Ok((
+                    state,
+                    Some(simplify_path(&dest).to_string_lossy().to_string()),
+                ))
             }
             Command::DeleteBookmark(bm) => {
                 state.remove_bookmark(bm.as_ref());
