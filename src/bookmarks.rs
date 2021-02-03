@@ -1,9 +1,6 @@
 use anyhow::{Context, Result};
-use std::{
-    ops::Deref,
-    path::{Path, PathBuf},
-    sync::Arc,
-};
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tokio::fs::{self, OpenOptions};
 
 use crate::storage;

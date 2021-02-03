@@ -1,8 +1,7 @@
-use std::{env, iter::FromIterator, ops::Range, path::PathBuf, sync::Arc, time::Duration};
+use std::{iter::FromIterator, ops::Range, path::PathBuf, sync::Arc, time::Duration};
 
-use anyhow::Result;
 use crossterm::event::Event;
-use env::set_current_dir;
+
 use tokio::time::Instant;
 
 use crate::bookmarks::Bookmark;
@@ -92,13 +91,6 @@ impl MoveDirection {
 }
 
 impl SelectionState {
-    pub fn new(selection: Vec<usize>, highlight: Option<usize>) -> Self {
-        Self {
-            selection,
-            highlight,
-        }
-    }
-
     pub fn from_bookmarks(bookmarks: &[Arc<Bookmark>]) -> Self {
         let selection = Range {
             start: 0,
@@ -175,6 +167,7 @@ impl AppState {
 pub enum Command {
     Exit,
     Enter(PathBuf),
+    #[allow(dead_code)]
     ConfirmDeleteBookmark(Arc<Bookmark>),
     DeleteBookmark(Arc<Bookmark>),
 }

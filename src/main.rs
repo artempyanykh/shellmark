@@ -7,34 +7,11 @@ mod storage;
 
 use anyhow::Result;
 use clap::Clap;
-use crossterm::{
-    event::{Event, EventStream, KeyCode, KeyEvent, KeyModifiers},
-    execute, terminal,
-};
-use futures::stream::{self, TryStreamExt};
-use fuzzy_matcher::skim::SkimMatcherV2;
-use fuzzy_matcher::FuzzyMatcher;
-use std::{
-    env,
-    error::Error,
-    io::{self, Stdout},
-    iter::FromIterator,
-    ops::Range,
-    process::exit,
-    sync::Arc,
-    time::Duration,
-    unreachable, usize,
-};
-use storage::friendly_path;
-use terminal::{EnterAlternateScreen, LeaveAlternateScreen};
-use tokio::{
-    fs::{self, File},
-    time::Instant,
-};
-use tokio_stream::StreamExt;
-use tracing::{info, warn, Level};
+
+use std::error::Error;
+
+use tracing::Level;
 use tracing_subscriber::EnvFilter;
-use tui::{backend::CrosstermBackend, Terminal};
 
 use crate::add::add_cmd;
 use crate::browse::browse_cmd;

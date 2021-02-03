@@ -1,8 +1,6 @@
 use std::{
-    io::{self, Stderr, Stdout},
+    io::{self, Stderr},
     ops::Range,
-    sync::Arc,
-    time::Duration,
 };
 
 use anyhow::Result;
@@ -22,7 +20,7 @@ use tui::{backend::CrosstermBackend, Terminal};
 
 use super::*;
 use crate::{
-    bookmarks::{read_bookmarks, write_bookmarks, Bookmark},
+    bookmarks::{read_bookmarks, write_bookmarks},
     search::find_matches,
 };
 

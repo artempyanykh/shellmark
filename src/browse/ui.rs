@@ -11,7 +11,7 @@ use tui::{
 use super::*;
 use crate::storage::friendly_path;
 use std::{
-    io::{Stderr, Stdout},
+    io::{Stderr},
     iter::FromIterator,
 };
 
