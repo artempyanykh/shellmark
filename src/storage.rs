@@ -33,7 +33,7 @@ pub fn friendly_path(path: &Path) -> String {
     friendly_name
 }
 
-#[cfg(target_os = "unix")]
+#[cfg(not(target_os = "windows"))]
 pub fn simplify_path(path: &Path) -> &Path {
     path
 }
