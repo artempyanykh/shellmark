@@ -20,7 +20,7 @@ function s
         return 1
     end
 
-    set -l out (shellmark --out unix $argv)
+    set -l out (shellmark --out posix $argv)
 
     if test -n "Sout"
         eval "$out"
