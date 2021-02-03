@@ -91,17 +91,30 @@ impl MoveDirection {
 }
 
 impl SelectionState {
-    pub fn from_bookmarks(bookmarks: &[Arc<Bookmark>]) -> Self {
+    pub fn from_bookmarks_with_highlight(
+        bookmarks: &[Arc<Bookmark>],
+        highlight: Option<usize>,
+    ) -> Self {
         let selection = Range {
             start: 0,
             end: bookmarks.len(),
         }
         .collect();
-        let highlight = if bookmarks.is_empty() { None } else { Some(0) };
+        let highlight = if bookmarks.is_empty() {
+            None
+        } else {
+            highlight
+                .map(|cur| cur.min(bookmarks.len() - 1))
+                .or(Some(0))
+        };
         Self {
             selection,
             highlight,
         }
+    }
+
+    pub fn from_bookmarks(bookmarks: &[Arc<Bookmark>]) -> Self {
+        Self::from_bookmarks_with_highlight(bookmarks, None)
     }
 
     pub fn move_highlight(&self, direction: MoveDirection) -> Self {
@@ -159,7 +172,10 @@ impl AppState {
 
     pub fn remove_bookmark(&mut self, bookmark: &Bookmark) {
         self.bookmarks.retain(|b| *b.as_ref() != *bookmark);
-        self.selection_state = SelectionState::from_bookmarks(&self.bookmarks)
+        self.selection_state = SelectionState::from_bookmarks_with_highlight(
+            &self.bookmarks,
+            self.selection_state.highlight,
+        );
     }
 }
 

@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     match opts.command {
         Some(cli::Command::Add(add_cmd_opts)) => add_cmd(add_cmd_opts).await?,
-        Some(cli::Command::Browse(browse_cmd_opts)) => browse_cmd(opts.out_type).await?,
+        Some(cli::Command::Browse(_)) => browse_cmd(opts.out_type).await?,
         None => browse_cmd(opts.out_type).await?,
     }
 
