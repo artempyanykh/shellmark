@@ -18,6 +18,8 @@ pub enum Command {
     Add(AddCmd),
     /// (default, alias: b) Interactively find and select bookmarks
     Browse(BrowseCmd),
+    /// Output a command string to integrate shellmark into the shell
+    Plug,
 }
 
 #[derive(Clap)]

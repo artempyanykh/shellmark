@@ -28,9 +28,9 @@ use crate::{
 
 pub async fn browse_cmd() -> Result<Option<ChangeDirAction>> {
     setup_terminal()?;
-    let output = interact().await?;
+    let output = interact().await;
     restore_terminal()?;
-    Ok(output)
+    output
 }
 
 pub struct ChangeDirAction {
@@ -98,6 +98,7 @@ fn setup_terminal() -> Result<()> {
 }
 
 fn restore_terminal() -> Result<()> {
+    crossterm::terminal::disable_raw_mode()?;
     Ok(execute!(io::stderr(), LeaveAlternateScreen)?)
 }
 

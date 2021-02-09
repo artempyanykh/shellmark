@@ -11,39 +11,26 @@ For convenience setup an `alias b='shellmark'`.
 
 ## Integration with shell
 
+### Bash/Zsh
+
+```
+if type shellmark &>/dev/null; then
+    eval "$(shellmark --out posix plug)"
+fi
+```
+
 ### Fish
 
 ```
-function s
-    if ! type -q shellmark
-        echo "shellmark is not in PATH" 1>&2
-        return 1
-    end
-
-    set -l out (shellmark --out posix $argv)
-
-    if test -n "Sout"
-        eval "$out"
-    end
+if type -q shellmark
+    shellmark --out fish plug | source
 end
 ```
 
 ### PowerShell
 
 ```
-function Invoke-Shellmark {
-    if (-Not (Get-Command shellmark -ErrorAction SilentlyContinue)) {
-        Write-Output "shellmark not found in path"
-        return
-    }
-    $OUT = shellmark --out powershell @args
-    if ($OUT) {
-        try {
-            Invoke-Expression $OUT
-        }
-        catch {
-            Write-Output $OUT
-        }
-    }
+if (Get-Command shellmark -ErrorAction SilentlyContinue) {
+    shellmark --out powershell | Invoke-Expression
 }
 ```
