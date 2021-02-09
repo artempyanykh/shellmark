@@ -19,32 +19,37 @@ use tokio_stream::{wrappers::ReceiverStream, StreamExt};
 use tui::{backend::CrosstermBackend, Terminal};
 
 use super::*;
+use crate::shell::{self, OutputType};
 use crate::{
     bookmarks::{read_bookmarks, write_bookmarks},
-    cli::OutType,
     search::find_matches,
     storage::simplify_path,
 };
 
-pub async fn browse_cmd(out_type: OutType) -> Result<()> {
+pub async fn browse_cmd() -> Result<Option<ChangeDirAction>> {
     setup_terminal()?;
     let output = interact().await?;
     restore_terminal()?;
-    if let Some(output) = output {
-        print!("{}", prepare_output(&output, out_type));
-    }
-    Ok(())
+    Ok(output)
 }
 
-fn prepare_output(output: &str, out_type: OutType) -> String {
-    match out_type {
-        OutType::Plain => output.to_string(),
-        OutType::Posix => format!("cd '{}'", output),
-        OutType::PowerShell => format!("Push-Location '{}'", output),
+pub struct ChangeDirAction {
+    dest: PathBuf,
+}
+
+impl shell::Output for ChangeDirAction {
+    fn to_output(&self, out_type: OutputType) -> String {
+        let dest_string = simplify_path(&self.dest).to_string_lossy();
+
+        match out_type {
+            OutputType::Plain => dest_string.to_string(),
+            OutputType::Posix | OutputType::Fish => format!("cd {}", dest_string),
+            OutputType::PowerShell => format!("Push-Location '{}'", dest_string),
+        }
     }
 }
 
-async fn interact() -> Result<Option<String>> {
+async fn interact() -> Result<Option<ChangeDirAction>> {
     let bookmarks = read_bookmarks().await?;
     let matcher = SkimMatcherV2::default();
 
@@ -257,7 +262,7 @@ fn handle_key_event(app_state: &AppState, event: KeyEvent, matcher: &SkimMatcher
     new_state
 }
 
-async fn handle_command(mut state: AppState) -> Result<(AppState, Option<String>)> {
+async fn handle_command(mut state: AppState) -> Result<(AppState, Option<ChangeDirAction>)> {
     match &state.pending_command {
         None => Ok((state, None)),
         Some(cmd) => match cmd.clone() {
@@ -271,10 +276,7 @@ async fn handle_command(mut state: AppState) -> Result<(AppState, Option<String>
                 } else {
                     path
                 };
-                Ok((
-                    state,
-                    Some(simplify_path(&dest).to_string_lossy().to_string()),
-                ))
+                Ok((state, Some(ChangeDirAction { dest })))
             }
             Command::DeleteBookmark(bm) => {
                 state.remove_bookmark(bm.as_ref());

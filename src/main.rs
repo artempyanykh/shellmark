@@ -3,10 +3,12 @@ mod bookmarks;
 mod browse;
 mod cli;
 mod search;
+mod shell;
 mod storage;
 
 use anyhow::Result;
 use clap::Clap;
+use shell::Output;
 
 use std::default::Default;
 use std::error::Error;
@@ -26,10 +28,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .init();
     let opts = cli::Opts::parse();
 
-    match opts.command {
-        Some(cli::Command::Add(add_cmd_opts)) => add_cmd(add_cmd_opts).await?,
-        Some(cli::Command::Browse(_)) => browse_cmd(opts.out_type).await?,
-        None => browse_cmd(opts.out_type).await?,
+    let output = match opts.command {
+        Some(cli::Command::Add(add_cmd_opts)) => {
+            add_cmd(add_cmd_opts).await?.to_output(opts.out_type)
+        }
+        Some(cli::Command::Browse(_)) => browse_cmd().await?.to_output(opts.out_type),
+        None => browse_cmd().await?.to_output(opts.out_type),
+    };
+
+    if !output.is_empty() {
+        print!("{}", output);
     }
 
     Ok(())

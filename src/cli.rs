@@ -1,3 +1,4 @@
+use crate::shell::{OutputType, OUTPUT_TYPES_STR};
 use clap::{crate_version, Clap};
 
 #[derive(Clap)]
@@ -6,9 +7,9 @@ use clap::{crate_version, Clap};
 pub struct Opts {
     #[clap(subcommand)]
     pub command: Option<Command>,
-    #[clap(short = 'o', long = "out", possible_values = OUT_TYPES_STR, default_value = OutType::Plain.to_str())]
-    /// Output selection as plain data or as evalable command for one of the shells
-    pub out_type: OutType,
+    #[clap(short = 'o', long = "out", possible_values = OUTPUT_TYPES_STR, default_value = OutputType::Plain.to_str())]
+    /// Output result as plain text or as evalable command for one of the shells
+    pub out_type: OutputType,
 }
 
 #[derive(Clap)]
@@ -35,48 +36,3 @@ pub struct AddCmd {
 #[derive(Clap, Default)]
 #[clap(alias = "b")]
 pub struct BrowseCmd {}
-
-const OUT_TYPES_STR: &'static [&'static str] = &["plain", "posix", "powershell"];
-
-#[derive(Clap)]
-pub enum OutType {
-    Plain,
-    Posix,
-    PowerShell,
-}
-
-impl Default for OutType {
-    fn default() -> Self {
-        OutType::Plain
-    }
-}
-
-impl OutType {
-    const fn to_str(&self) -> &'static str {
-        use OutType::*;
-
-        match self {
-            Plain => "plain",
-            Posix => "posix",
-            PowerShell => "powershell",
-        }
-    }
-}
-
-impl std::str::FromStr for OutType {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        use OutType::*;
-        match s {
-            "plain" => Ok(Plain),
-            "posix" => Ok(Posix),
-            "powershell" => Ok(PowerShell),
-            _ => Err(format!(
-                "Unexpected out: {}. Possible values are: {}",
-                s,
-                OUT_TYPES_STR.join(", "),
-            )),
-        }
-    }
-}
