@@ -31,6 +31,6 @@ end
 
 ```
 if (Get-Command shellmark -ErrorAction SilentlyContinue) {
-    shellmark --out powershell | Invoke-Expression
+    Invoke-Expression (@(&shellmark --out powershell plug) -join "`n")
 }
 ```
