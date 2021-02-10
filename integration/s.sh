@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-function s {
+function {name} {
     if ! type shellmark &>/dev/null; then
         echo "shellmark is not in PATH"
         return 1

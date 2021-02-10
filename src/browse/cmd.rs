@@ -38,14 +38,15 @@ pub struct ChangeDirAction {
 }
 
 impl shell::Output for ChangeDirAction {
-    fn to_output(&self, out_type: OutputType) -> String {
+    fn to_output(&self, out_type: OutputType) -> Option<String> {
         let dest_string = simplify_path(&self.dest).to_string_lossy();
 
-        match out_type {
+        let out = match out_type {
             OutputType::Plain => dest_string.to_string(),
             OutputType::Posix | OutputType::Fish => format!("cd {}", dest_string),
             OutputType::PowerShell => format!("Push-Location '{}'", dest_string),
-        }
+        };
+        Some(out)
     }
 }
 

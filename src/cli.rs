@@ -19,7 +19,7 @@ pub enum Command {
     /// (default, alias: b) Interactively find and select bookmarks
     Browse(BrowseCmd),
     /// Output a command string to integrate shellmark into the shell
-    Plug,
+    Plug(PlugCmd),
 }
 
 #[derive(Clap)]
@@ -38,3 +38,10 @@ pub struct AddCmd {
 #[derive(Clap, Default)]
 #[clap(alias = "b")]
 pub struct BrowseCmd {}
+
+#[derive(Clap)]
+pub struct PlugCmd {
+    #[clap(short, long, default_value = "s")]
+    /// Name of the shell alias
+    pub name: String,
+}

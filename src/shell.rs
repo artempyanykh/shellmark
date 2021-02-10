@@ -1,20 +1,20 @@
 use clap::Clap;
 
 pub trait Output {
-    fn to_output(&self, out_type: OutputType) -> String;
+    fn to_output(&self, out_type: OutputType) -> Option<String>;
 }
 
 impl Output for () {
-    fn to_output(&self, _: OutputType) -> String {
-        String::new()
+    fn to_output(&self, _: OutputType) -> Option<String> {
+        None
     }
 }
 
 impl<A: Output> Output for Option<A> {
-    fn to_output(&self, out_type: OutputType) -> String {
+    fn to_output(&self, out_type: OutputType) -> Option<String> {
         match self {
             Some(out) => out.to_output(out_type),
-            None => String::new(),
+            _ => None,
         }
     }
 }

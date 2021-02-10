@@ -14,4 +14,4 @@ function Invoke-Shellmark {
     }
 }
 
-Set-Alias -Name s -Value Invoke-Shellmark
+Set-Alias -Name {name} -Value Invoke-Shellmark

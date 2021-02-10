@@ -35,11 +35,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
             add_cmd(add_cmd_opts).await?.to_output(opts.out_type)
         }
         Some(cli::Command::Browse(_)) => browse_cmd().await?.to_output(opts.out_type),
-        Some(cli::Command::Plug) => plug_cmd().to_output(opts.out_type),
+        Some(cli::Command::Plug(plug_cmd_opts)) => plug_cmd(plug_cmd_opts).to_output(opts.out_type),
         None => browse_cmd().await?.to_output(opts.out_type),
     };
 
-    if !output.is_empty() {
+    if let Some(output) = output {
         print!("{}", output);
     }
 

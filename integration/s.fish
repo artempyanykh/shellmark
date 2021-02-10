@@ -1,6 +1,6 @@
 #!/usr/bin/env fish
 
-function s
+function {name} 
     if ! type -q shellmark
         echo "shellmark is not in PATH" 1>&2
         return 1
