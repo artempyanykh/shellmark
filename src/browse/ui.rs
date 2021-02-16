@@ -30,6 +30,7 @@ pub fn draw_ui(
 ) -> Result<()> {
     let mut cursor_loc = CursorLoc::new(0, 0);
 
+    terminal.hide_cursor()?;
     terminal.draw(|f| {
         let all_area = f.size();
         let block = Block::default().title("Shellmark").borders(Borders::ALL);
@@ -94,7 +95,7 @@ pub fn draw_ui(
         let bookmarks_tbl = Table::new(rows)
             .block(Block::default())
             .column_spacing(1)
-            .widths(&[Constraint::Min(10), Constraint::Min(10)])
+            .widths(&[Constraint::Min(20), Constraint::Min(20)])
             .highlight_symbol(">> ")
             .highlight_style(Style::default().add_modifier(Modifier::BOLD));
         let mut bookmarks_state = TableState::default();
