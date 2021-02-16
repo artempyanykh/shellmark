@@ -2,6 +2,7 @@ mod add;
 mod bookmarks;
 mod browse;
 mod cli;
+mod keys;
 mod plug;
 mod search;
 mod shell;

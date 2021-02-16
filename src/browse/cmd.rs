@@ -1,58 +1,33 @@
-use std::{
-    io::{self, Stderr},
-    ops::Range,
-};
+use std::io::{self, Stderr};
 
 use anyhow::Result;
 use crossterm::{
-    event::{Event, KeyEvent, KeyModifiers},
+    event::Event,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen},
 };
-use crossterm::{
-    event::{EventStream, KeyCode},
-    execute,
-};
+use crossterm::{event::EventStream, execute};
 use futures::{stream, TryStreamExt};
 use fuzzy_matcher::skim::SkimMatcherV2;
-use tokio::{fs, sync::mpsc, time::Instant};
-use tokio_stream::{wrappers::ReceiverStream, StreamExt};
+use tokio::time::Instant;
+use tokio_stream::StreamExt;
 use tui::{backend::CrosstermBackend, Terminal};
 
 use super::*;
-use crate::shell::{self, OutputType};
-use crate::{
-    bookmarks::{read_bookmarks, write_bookmarks},
-    search::find_matches,
-    storage::simplify_path,
-};
+use crate::bookmarks::read_bookmarks;
+use crate::keys;
+use crate::keys::ModeMap;
 
-pub async fn browse_cmd() -> Result<Option<ChangeDirAction>> {
+pub async fn browse_cmd() -> Result<Option<Action>> {
     setup_terminal()?;
     let output = interact().await;
     restore_terminal()?;
     output
 }
 
-pub struct ChangeDirAction {
-    dest: PathBuf,
-}
-
-impl shell::Output for ChangeDirAction {
-    fn to_output(&self, out_type: OutputType) -> Option<String> {
-        let dest_string = simplify_path(&self.dest).to_string_lossy();
-
-        let out = match out_type {
-            OutputType::Plain => dest_string.to_string(),
-            OutputType::Posix | OutputType::Fish => format!("cd {}", dest_string),
-            OutputType::PowerShell => format!("Push-Location '{}'", dest_string),
-        };
-        Some(out)
-    }
-}
-
-async fn interact() -> Result<Option<ChangeDirAction>> {
+async fn interact() -> Result<Option<Action>> {
     let bookmarks = read_bookmarks().await?;
     let matcher = SkimMatcherV2::default();
+    let keybinds = setup_keybindings();
 
     let backend = CrosstermBackend::new(io::stderr());
     let mut terminal = Terminal::new(backend)?;
@@ -64,31 +39,19 @@ async fn interact() -> Result<Option<ChangeDirAction>> {
         .map(Result::Ok);
     tokio::pin!(ticks);
 
-    let (tx, rx) = mpsc::channel(1);
-    let one_off = ReceiverStream::new(rx);
-
     let user_events = EventStream::new().map_ok(SystemEvent::from);
-    let mut system_events = ticks.merge(user_events).merge(one_off);
+    let mut system_events = ticks.merge(user_events);
 
-    let mut app_state = AppState::new(bookmarks);
+    let mut app_state = BrowseState::new(bookmarks, Arc::new(matcher));
 
     loop {
         let event: SystemEvent = TryStreamExt::try_next(&mut system_events)
             .await?
             .expect("Ticks are always present");
 
-        app_state = event_loop(event, app_state, &mut terminal, &matcher).await?;
-
-        if let Some(cmd) = app_state.pending_command.clone() {
-            let (new_app_state, output) = handle_command(app_state).await?;
-            app_state = new_app_state;
-            app_state.pending_command = None;
-            if cmd.is_terminal() {
-                return Ok(output);
-            } else {
-                app_state.last_refresh_at = None;
-                tx.send(Ok(SystemEvent::from(Tick))).await?;
-            }
+        match event_loop(event, app_state, &keybinds, &mut terminal).await? {
+            HandleResult::Continue(new_state) => app_state = new_state,
+            HandleResult::Terminate(action) => return Ok(action),
         }
     }
 }
@@ -105,15 +68,15 @@ fn restore_terminal() -> Result<()> {
 
 async fn event_loop(
     event: SystemEvent,
-    app_state: AppState,
+    app_state: BrowseState,
+    keybinds: &ModeMap<Command>,
     terminal: &mut Terminal<CrosstermBackend<Stderr>>,
-    matcher: &SkimMatcherV2,
-) -> Result<AppState> {
+) -> Result<HandleResult> {
     let (should_repaint, new_state) = match event {
         SystemEvent::Timer(_) => match app_state.last_refresh_at {
             None => (
                 true,
-                AppState {
+                BrowseState {
                     last_refresh_at: Instant::now().into(),
                     ..app_state.clone()
                 },
@@ -121,17 +84,26 @@ async fn event_loop(
             Some(_) => (false, app_state.clone()),
         },
         SystemEvent::User(Event::Key(k)) => {
-            let mut new_state = handle_key_event(&app_state, k, matcher);
-            if new_state != app_state {
-                new_state.last_refresh_at = Instant::now().into();
-                (true, new_state)
-            } else {
-                (false, new_state)
+            let command = keybinds.process("normal", k);
+            let result = match command {
+                None => HandleResult::Continue(app_state.clone()),
+                Some(command) => app_state.handle_command(&command).await?,
+            };
+            match result {
+                HandleResult::Continue(mut new_state) => {
+                    if new_state != app_state {
+                        new_state.last_refresh_at = Instant::now().into();
+                        (true, new_state)
+                    } else {
+                        (false, new_state)
+                    }
+                }
+                act @ HandleResult::Terminate(_) => return Ok(act),
             }
         }
         _ => (
             true,
-            AppState {
+            BrowseState {
                 last_refresh_at: Instant::now().into(),
                 ..app_state.clone()
             },
@@ -142,152 +114,39 @@ async fn event_loop(
         ui::draw_ui(terminal, &new_state)?;
     }
 
-    Ok(new_state)
+    Ok(HandleResult::Continue(new_state))
 }
 
-fn handle_key_event(app_state: &AppState, event: KeyEvent, matcher: &SkimMatcherV2) -> AppState {
-    let mut new_state = match event {
-        // Ctrl-C
-        KeyEvent {
-            code: KeyCode::Char('c'),
-            modifiers: KeyModifiers::CONTROL,
-        } => AppState {
-            pending_command: Some(Command::Exit),
-            ..app_state.clone()
-        },
-        // Ctrl-n, Down
-        KeyEvent {
-            code: KeyCode::Char('n'),
-            modifiers: KeyModifiers::CONTROL,
-        }
-        | KeyEvent {
-            code: KeyCode::Down,
-            ..
-        } => AppState {
-            selection_state: app_state
-                .selection_state
-                .move_highlight(MoveDirection::Down),
-            ..app_state.clone()
-        },
-        // Ctrl-p, Up
-        KeyEvent {
-            code: KeyCode::Char('p'),
-            modifiers: KeyModifiers::CONTROL,
-        }
-        | KeyEvent {
-            code: KeyCode::Up, ..
-        } => AppState {
-            selection_state: app_state.selection_state.move_highlight(MoveDirection::Up),
-            ..app_state.clone()
-        },
-        // Enter
-        KeyEvent {
-            code: KeyCode::Enter,
-            modifiers: _,
-        } => {
-            if let Some(bm) = app_state.selected_bookmark() {
-                AppState {
-                    pending_command: Some(Command::Enter(bm.dest.clone())),
-                    ..app_state.clone()
-                }
-            } else {
-                app_state.clone()
-            }
-        }
-        // Ctrl-k (or Ctrl-Shift-k, or Ctrl-K) to delete selected bookmark
-        KeyEvent {
-            code: KeyCode::Char(k),
-            modifiers: m,
-        } if (k == 'k' || k == 'K')
-            && (m == KeyModifiers::CONTROL || m == KeyModifiers::CONTROL | KeyModifiers::SHIFT) =>
-        {
-            if let Some(bm) = app_state.selected_bookmark() {
-                AppState {
-                    pending_command: Some(Command::DeleteBookmark(bm.clone())),
-                    ..app_state.clone()
-                }
-            } else {
-                app_state.clone()
-            }
-        }
-        // Regular chars
-        KeyEvent {
-            code: KeyCode::Char(c),
-            ..
-        } => AppState {
-            input_state: app_state.input_state.insert_char(c),
-            ..app_state.clone()
-        },
-        // Backspace, Ctrl-Backspace
-        KeyEvent {
-            code: KeyCode::Backspace,
-            modifiers,
-        } => {
-            if modifiers == KeyModifiers::CONTROL {
-                AppState {
-                    input_state: InputState::default(),
-                    ..app_state.clone()
-                }
-            } else {
-                AppState {
-                    input_state: app_state.input_state.delete_char_backwards(),
-                    ..app_state.clone()
-                }
-            }
-        }
-        _ => app_state.clone(),
-    };
+fn setup_keybindings() -> ModeMap<Command> {
+    let mut mapping = ModeMap::new();
 
-    if new_state.input_state != app_state.input_state {
-        if new_state.input_state.input.is_empty() {
-            new_state.selection_state.selection = Range {
-                start: 0,
-                end: new_state.bookmarks.len(),
-            }
-            .collect();
-        } else {
-            let matches = find_matches(
-                matcher,
-                &new_state.bookmarks,
-                new_state.input_state.to_string(),
-            );
-            new_state.selection_state.selection = matches;
-        }
+    mapping.bind("normal", keys::ctrl_c, Command::ExitApp);
 
-        if new_state.selection_state.selection.is_empty() {
-            new_state.selection_state.highlight = None;
-        } else {
-            new_state.selection_state.highlight = Some(0);
-        }
-    }
+    mapping.bind(
+        "normal",
+        |k| keys::ctrl_n(k) || keys::arrow_down(k),
+        Command::MoveSel(MoveDirection::Down),
+    );
 
-    new_state
-}
+    mapping.bind(
+        "normal",
+        |k| keys::ctrl_p(k) || keys::arrow_up(k),
+        Command::MoveSel(MoveDirection::Up),
+    );
 
-async fn handle_command(mut state: AppState) -> Result<(AppState, Option<ChangeDirAction>)> {
-    match &state.pending_command {
-        None => Ok((state, None)),
-        Some(cmd) => match cmd.clone() {
-            Command::Exit => Ok((state, None)),
-            Command::Enter(path) => {
-                let path_meta = fs::metadata(&path).await?;
-                let dest = if path_meta.is_file() {
-                    path.parent()
-                        .expect("File should have a parent dir")
-                        .to_path_buf()
-                } else {
-                    path
-                };
-                Ok((state, Some(ChangeDirAction { dest })))
-            }
-            Command::DeleteBookmark(bm) => {
-                state.remove_bookmark(bm.as_ref());
-                write_bookmarks(&state.bookmarks).await?;
-                Ok((state, None))
-            }
-            Command::ConfirmDeleteBookmark(_) => {
-                unimplemented!("Deletion confirmation not implemented yet")
-            }
-        },
-    }
+    mapping.bind("normal", keys::enter, Command::EnterSelDir);
+
+    mapping.bind(
+        "normal",
+        |k| keys::ctrl_k(k) || keys::ctrl_K(k),
+        Command::DelSelBookmark,
+    );
+
+    mapping.bind("normal", keys::backspace, Command::DeleteCharBack);
+
+    mapping.bind("normal", keys::ctrl_backspace, Command::ClearInput);
+
+    mapping.bind_with_input("normal", keys::any_char, |c| Command::InsertChar(c));
+
+    mapping
 }

@@ -1,10 +1,22 @@
-use std::{iter::FromIterator, ops::Range, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    convert::From, iter::FromIterator, ops::Range, path::PathBuf, sync::Arc, time::Duration,
+    unimplemented,
+};
+
+use anyhow::Result;
+
+use derivative::Derivative;
 
 use crossterm::event::Event;
 
+use fuzzy_matcher::skim::SkimMatcherV2;
 use tokio::time::Instant;
 
-use crate::bookmarks::Bookmark;
+use crate::{
+    bookmarks::{write_bookmarks, Bookmark},
+    search, shell,
+    storage::simplify_path,
+};
 
 mod cmd;
 mod ui;
@@ -37,12 +49,12 @@ impl From<Tick> for SystemEvent {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct InputState {
+pub struct Input {
     pub input: Vec<char>,
     pub cursor: u16,
 }
 
-impl InputState {
+impl Input {
     pub fn insert_char(&self, c: char) -> Self {
         let mut new_state = self.clone();
         new_state.input.insert(new_state.cursor as usize, c);
@@ -68,11 +80,11 @@ impl InputState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SelectionState {
+pub struct Selection {
     // indices into bookmarks of App state
-    pub selection: Vec<usize>,
+    pub candidates: Vec<usize>,
     // idx into selection
-    pub highlight: Option<usize>,
+    pub selected: Option<usize>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,50 +102,55 @@ impl MoveDirection {
     }
 }
 
-impl SelectionState {
-    pub fn from_bookmarks_with_highlight(
+impl Selection {
+    pub fn from_bookmarks_with_selected(
         bookmarks: &[Arc<Bookmark>],
-        highlight: Option<usize>,
+        selected: Option<usize>,
     ) -> Self {
-        let selection = Range {
+        let candidates = Range {
             start: 0,
             end: bookmarks.len(),
         }
         .collect();
-        let highlight = if bookmarks.is_empty() {
-            None
-        } else {
-            highlight
-                .map(|cur| cur.min(bookmarks.len() - 1))
-                .or(Some(0))
-        };
-        Self {
-            selection,
-            highlight,
-        }
+        Self::from_candidates_with_selected(candidates, selected)
     }
 
     pub fn from_bookmarks(bookmarks: &[Arc<Bookmark>]) -> Self {
-        Self::from_bookmarks_with_highlight(bookmarks, None)
+        Self::from_bookmarks_with_selected(bookmarks, None)
     }
 
-    pub fn move_highlight(&self, direction: MoveDirection) -> Self {
-        if self.selection.is_empty() {
+    pub fn from_candidates_with_selected(candidates: Vec<usize>, selected: Option<usize>) -> Self {
+        let selected = if candidates.is_empty() {
+            None
+        } else {
+            selected
+                .map(|cur| cur.min(candidates.len() - 1))
+                .or(Some(0))
+        };
+        Self {
+            candidates,
+            selected,
+        }
+    }
+
+    pub fn move_highlight(&self, direction: &MoveDirection) -> Self {
+        if self.candidates.is_empty() {
             return self.clone();
         }
-        match self.highlight {
-            None => SelectionState {
-                highlight: Some(0),
+        match self.selected {
+            None => Selection {
+                selected: Some(0),
                 ..self.clone()
             },
             Some(line) => {
                 let increment = direction.increment();
                 let new_line = (line as isize + increment as isize)
                     .max(0)
-                    .min(self.selection.len() as isize - 1) as usize;
+                    .min(self.candidates.len() as isize - 1)
+                    as usize;
 
-                SelectionState {
-                    highlight: Some(new_line),
+                Selection {
+                    selected: Some(new_line),
                     ..self.clone()
                 }
             }
@@ -141,59 +158,159 @@ impl SelectionState {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AppState {
-    pub input_state: InputState,
-    pub selection_state: SelectionState,
+#[derive(Derivative)]
+#[derivative(Debug, Clone, PartialEq, Eq)]
+pub struct BrowseState {
     pub bookmarks: Vec<Arc<Bookmark>>,
-    pub pending_command: Option<Command>,
+    #[derivative(Debug = "ignore", PartialEq = "ignore")]
+    pub matcher: Arc<SkimMatcherV2>,
+    pub input: Input,
+    pub selection: Selection,
     pub last_refresh_at: Option<Instant>,
 }
 
-impl AppState {
-    pub fn new(bookmarks: Vec<Arc<Bookmark>>) -> AppState {
-        let input_state = InputState::default();
-        let selection_state = SelectionState::from_bookmarks(&bookmarks);
-        AppState {
-            input_state,
-            selection_state,
+pub enum HandleResult {
+    Continue(BrowseState),
+    Terminate(Option<Action>),
+}
+
+impl BrowseState {
+    pub fn new(bookmarks: Vec<Arc<Bookmark>>, matcher: Arc<SkimMatcherV2>) -> BrowseState {
+        let input = Input::default();
+        let selection = Selection::from_bookmarks(&bookmarks);
+        BrowseState {
             bookmarks,
-            pending_command: None,
+            matcher,
+            input,
+            selection,
             last_refresh_at: None,
         }
     }
 
+    pub async fn handle_command(&self, cmd: &Command) -> Result<HandleResult> {
+        match cmd {
+            Command::ExitApp => Ok(HandleResult::Terminate(None)),
+            Command::EnterSelDir => {
+                if let Some(bm) = self.selected_bookmark() {
+                    Ok(HandleResult::Terminate(Some(Action::ChangeDirAction {
+                        dest: bm.dest.clone(),
+                    })))
+                } else {
+                    Ok(HandleResult::Continue(self.clone()))
+                }
+            }
+            Command::ConfirmDelSelBookmark => {
+                unimplemented!()
+            }
+            Command::DelSelBookmark => {
+                let mut new_state = self.clone();
+                if let Some(bm) = new_state.selected_bookmark() {
+                    new_state.remove_bookmark(&bm);
+                    write_bookmarks(&new_state.bookmarks).await?;
+                }
+                Ok(HandleResult::Continue(new_state))
+            }
+            Command::InsertChar(c) => {
+                let mut new_state = BrowseState {
+                    input: self.input.insert_char(*c),
+                    ..self.clone()
+                };
+                new_state.update_selection();
+                Ok(HandleResult::Continue(new_state))
+            }
+            Command::DeleteCharBack => {
+                let mut new_state = BrowseState {
+                    input: self.input.delete_char_backwards(),
+                    ..self.clone()
+                };
+                new_state.update_selection();
+                Ok(HandleResult::Continue(new_state))
+            }
+            Command::ClearInput => {
+                let mut new_state = BrowseState {
+                    input: Input::default(),
+                    ..self.clone()
+                };
+                new_state.update_selection();
+                Ok(HandleResult::Continue(new_state))
+            }
+            Command::MoveSel(direction) => {
+                let new_selection = self.selection.move_highlight(direction);
+                Ok(HandleResult::Continue(BrowseState {
+                    selection: new_selection,
+                    ..self.clone()
+                }))
+            }
+            Command::ShowHelp => {
+                unimplemented!()
+            }
+        }
+    }
+
     pub fn selected_bookmark(&self) -> Option<Arc<Bookmark>> {
-        self.selection_state
-            .highlight
-            .map(|sel_idx| self.selection_state.selection[sel_idx])
+        self.selection
+            .selected
+            .map(|sel_idx| self.selection.candidates[sel_idx])
             .map(|b_idx| self.bookmarks[b_idx].clone())
     }
 
     pub fn remove_bookmark(&mut self, bookmark: &Bookmark) {
         self.bookmarks.retain(|b| *b.as_ref() != *bookmark);
-        self.selection_state = SelectionState::from_bookmarks_with_highlight(
-            &self.bookmarks,
-            self.selection_state.highlight,
-        );
+        self.update_selection();
+    }
+
+    pub fn update_selection(&mut self) {
+        let input = self.input.to_string();
+        let selection = if input.is_empty() {
+            Selection::from_bookmarks_with_selected(&self.bookmarks, self.selection.selected)
+        } else {
+            let candidates = search::find_matches(&self.matcher, &self.bookmarks, input);
+            Selection::from_candidates_with_selected(candidates, self.selection.selected)
+        };
+        self.selection = selection;
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone)]
 pub enum Command {
-    Exit,
-    Enter(PathBuf),
+    ExitApp,
+    EnterSelDir,
     #[allow(dead_code)]
-    ConfirmDeleteBookmark(Arc<Bookmark>),
-    DeleteBookmark(Arc<Bookmark>),
+    ConfirmDelSelBookmark,
+    DelSelBookmark,
+    InsertChar(char),
+    DeleteCharBack,
+    ClearInput,
+    MoveSel(MoveDirection),
+    #[allow(dead_code)]
+    ShowHelp,
 }
 
-impl Command {
-    fn is_terminal(&self) -> bool {
-        use Command::*;
+#[allow(dead_code)]
+pub enum Mode {
+    Normal,
+    PendingDelete,
+}
+
+pub enum Action {
+    ChangeDirAction { dest: PathBuf },
+}
+
+impl shell::Output for Action {
+    fn to_output(&self, out_type: shell::OutputType) -> Option<String> {
+        use shell::OutputType::*;
+
         match self {
-            Exit | Enter(_) => true,
-            ConfirmDeleteBookmark(_) | DeleteBookmark(_) => false,
+            Action::ChangeDirAction { dest } => {
+                let dest_string = simplify_path(dest).to_string_lossy();
+
+                let out = match out_type {
+                    Plain => dest_string.to_string(),
+                    Posix | Fish => format!("cd {}", dest_string),
+                    PowerShell => format!("Push-Location '{}'", dest_string),
+                };
+                Some(out)
+            }
         }
     }
 }

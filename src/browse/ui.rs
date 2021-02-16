@@ -26,7 +26,7 @@ impl CursorLoc {
 
 pub fn draw_ui(
     terminal: &mut Terminal<CrosstermBackend<Stderr>>,
-    new_state: &AppState,
+    new_state: &BrowseState,
 ) -> Result<()> {
     let mut cursor_loc = CursorLoc::new(0, 0);
 
@@ -60,7 +60,7 @@ pub fn draw_ui(
         );
 
         f.render_widget(
-            Paragraph::new(Span::raw(String::from_iter(&new_state.input_state.input)))
+            Paragraph::new(Span::raw(String::from_iter(&new_state.input.input)))
                 .alignment(Alignment::Left),
             input_block_area,
         );
@@ -69,8 +69,8 @@ pub fn draw_ui(
             .horizontal_margin(1)
             .constraints([Constraint::Percentage(100)])
             .split(chunks[1])[0];
-        let mut rows = Vec::with_capacity(new_state.selection_state.selection.len());
-        for &sel_idx in &new_state.selection_state.selection {
+        let mut rows = Vec::with_capacity(new_state.selection.candidates.len());
+        for &sel_idx in &new_state.selection.candidates {
             assert!(
                 sel_idx < new_state.bookmarks.len(),
                 "Selection index is out of range: {} ∉ ({}, {})",
@@ -79,15 +79,13 @@ pub fn draw_ui(
                 new_state.bookmarks.len()
             );
             // Render bookmark name with some colorization
-            let bm_name = colorize_match(
-                &new_state.bookmarks[sel_idx].name,
-                &new_state.input_state.input,
-            );
+            let bm_name =
+                colorize_match(&new_state.bookmarks[sel_idx].name, &new_state.input.input);
             let bm_name = Cell::from(bm_name).style(Style::default().fg(Color::Green));
             // Render bookmark dest with some colorization
             let bm_dest = colorize_match(
                 &friendly_path(&new_state.bookmarks[sel_idx].dest),
-                &new_state.input_state.input,
+                &new_state.input.input,
             );
             let bm_dest = Cell::from(bm_dest);
             let row = Row::new(vec![bm_name, bm_dest]);
@@ -100,12 +98,12 @@ pub fn draw_ui(
             .highlight_symbol(">> ")
             .highlight_style(Style::default().add_modifier(Modifier::BOLD));
         let mut bookmarks_state = TableState::default();
-        bookmarks_state.select(new_state.selection_state.highlight);
+        bookmarks_state.select(new_state.selection.selected);
 
         f.render_stateful_widget(bookmarks_tbl, list_area, &mut bookmarks_state);
 
         cursor_loc = CursorLoc::new(
-            input_block_area.x + new_state.input_state.cursor,
+            input_block_area.x + new_state.input.cursor,
             input_block_area.y,
         );
     })?;
