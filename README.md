@@ -1,13 +1,13 @@
 # `shellmark`: bookmark manager for shell
 
-_(Aspirational description)_
+> THIS IS AN EARLY ALPHA. It works for me, but requires better UX and more polish.
 
 `shellmark` is a cross-platform bookmark mananger for your shell. 
 The main features are:
 1. `shellmark add` to bookmark directories and files.
 2. `shellmark browse` to interactively search and act on bookmarks.
 
-For convenience setup an `alias b='shellmark'`.
+<img src="./assets/shellmark.gif" alt="Shellmark demonstration: CLI and TUI"/>
 
 ## Integration with shell
 
