@@ -1,5 +1,7 @@
 # `shellmark`: bookmark manager for shell
 
+<img src="./assets/shellmark.gif" alt="Shellmark demonstration: CLI and TUI"/>
+
 > THIS IS AN EARLY ALPHA. It works for me, but requires better UX and more polish.
 
 `shellmark` is a cross-platform bookmark mananger for your shell. 
@@ -7,7 +9,18 @@ The main features are:
 1. `shellmark add` to bookmark directories and files.
 2. `shellmark browse` to interactively search and act on bookmarks.
 
-<img src="./assets/shellmark.gif" alt="Shellmark demonstration: CLI and TUI"/>
+## Installation instructions
+
+### From source
+
+Make sure you have Rust toolchain set up (1.49+ should work). Then run the following commands:
+
+```bash
+$ git clone https://github.com/artempyanykh/shellmark.git
+$ cd shellmark
+$ cargo install --path .
+```
+This will install `shellmark` under `~/.cargo/bin`.
 
 ## Integration with shell
 
