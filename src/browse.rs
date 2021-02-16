@@ -10,7 +10,7 @@ use derivative::Derivative;
 use crossterm::event::Event;
 
 use fuzzy_matcher::skim::SkimMatcherV2;
-use tokio::time::Instant;
+use tokio::{fs, time::Instant};
 
 use crate::{
     bookmarks::{write_bookmarks, Bookmark},
@@ -192,8 +192,18 @@ impl BrowseState {
             Command::ExitApp => Ok(HandleResult::Terminate(None)),
             Command::EnterSelDir => {
                 if let Some(bm) = self.selected_bookmark() {
+                    let meta = fs::metadata(&bm.dest).await?;
+                    let dest = if meta.is_file() {
+                        bm.dest
+                            .parent()
+                            .expect("File doesn't have a parent dir")
+                            .to_path_buf()
+                    } else {
+                        bm.dest.clone()
+                    };
+
                     Ok(HandleResult::Terminate(Some(Action::ChangeDirAction {
-                        dest: bm.dest.clone(),
+                        dest,
                     })))
                 } else {
                     Ok(HandleResult::Continue(self.clone()))
