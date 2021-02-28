@@ -1,11 +1,11 @@
 use anyhow::Result;
 use tui::{
-    backend::CrosstermBackend,
-    layout::{Alignment, Constraint, Direction, Layout},
+    backend::{Backend, CrosstermBackend},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState},
-    Terminal,
+    widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, TableState},
+    Frame, Terminal,
 };
 
 use super::*;
@@ -103,6 +103,11 @@ pub fn draw_ui(
 
         f.render_stateful_widget(bookmarks_tbl, list_area, &mut bookmarks_state);
 
+        // Render confirmation dialog for bookmark delete
+        if new_state.mode == Mode::PendingDelete {
+            render_confirm_delete_dialog(f, block_inner);
+        }
+
         cursor_loc = CursorLoc::new(
             input_block_area.x + new_state.input.cursor,
             input_block_area.y,
@@ -113,6 +118,56 @@ pub fn draw_ui(
     terminal.show_cursor()?;
 
     Ok(())
+}
+
+fn render_confirm_delete_dialog<B: Backend>(f: &mut Frame<B>, outer: Rect) {
+    let question_text = Span::styled(
+        "Delete selected bookmark?",
+        Style::default().add_modifier(Modifier::BOLD),
+    );
+    let question_text_len = question_text.content.len() as u16 + 10;
+    let confirmation_text = Spans::from(vec![
+        Span::raw("["),
+        Span::styled("Y", Style::default().add_modifier(Modifier::UNDERLINED)),
+        Span::raw("]es"),
+        Span::raw("  "),
+        Span::raw("["),
+        Span::styled("N", Style::default().add_modifier(Modifier::UNDERLINED)),
+        Span::raw("]o"),
+    ]);
+
+    let content = Paragraph::new(vec![
+        Span::raw("").into(), // empty line
+        question_text.into(),
+        Span::raw("").into(), // empty line
+        confirmation_text,
+        Span::raw("").into(), // empty line
+    ])
+    .block(Block::default().borders(Borders::ALL))
+    .alignment(Alignment::Center);
+
+    let vchunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(vec![
+            Constraint::Ratio(1, 3),
+            Constraint::Length(7),
+            Constraint::Ratio(1, 3),
+        ])
+        .split(outer);
+
+    let hchunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(vec![
+            Constraint::Ratio(1, 3),
+            Constraint::Length(question_text_len),
+            Constraint::Ratio(1, 3),
+        ])
+        .split(vchunks[1]);
+
+    let dialog_chunk = hchunks[1];
+
+    f.render_widget(Clear, dialog_chunk);
+    f.render_widget(content, dialog_chunk);
 }
 
 fn colorize_match(str: &str, input: &[char]) -> Spans<'static> {

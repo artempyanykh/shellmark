@@ -41,21 +41,23 @@ impl<C: Clone + 'static> ModeMap<C> {
         }
     }
 
-    pub fn bind_with_input<FC, FA, K>(&mut self, mode: &'static str, check: FC, act: FA)
+    pub fn bind_with_input<M, FC, FA, K>(&mut self, mode: M, check: FC, act: FA)
     where
+        M: Into<&'static str>,
         FC: Fn(KeyEvent) -> Option<K> + 'static,
         FA: Fn(K) -> C + 'static,
         K: 'static,
     {
         let binding = Binding::new(check, act);
         self.map
-            .entry(mode)
+            .entry(mode.into())
             .or_insert(Vec::new())
             .push(Box::new(binding));
     }
 
-    pub fn bind<FC>(&mut self, mode: &'static str, check: FC, cmd: C)
+    pub fn bind<M, FC>(&mut self, mode: M, check: FC, cmd: C)
     where
+        M: Into<&'static str>,
         FC: Fn(KeyEvent) -> bool + 'static,
     {
         let check = move |k| if check(k) { Some(()) } else { None };
@@ -66,13 +68,13 @@ impl<C: Clone + 'static> ModeMap<C> {
         };
 
         self.map
-            .entry(mode)
+            .entry(mode.into())
             .or_insert(Vec::new())
             .push(Box::new(binding));
     }
 
-    pub fn process(&self, mode: &'static str, key: KeyEvent) -> Option<C> {
-        if let Some(mappings) = self.map.get(mode) {
+    pub fn process<M: Into<&'static str>>(&self, mode: M, key: KeyEvent) -> Option<C> {
+        if let Some(mappings) = self.map.get(mode.into()) {
             for action in mappings {
                 if let Some(new_state) = action.process(key) {
                     return Some(new_state);
@@ -94,6 +96,18 @@ pub fn any_char(key: KeyEvent) -> Option<char> {
             modifiers: KeyModifiers::NONE,
         } => Some(c),
         _ => None,
+    }
+}
+
+pub fn char(ch: char) -> impl Fn(KeyEvent) -> bool {
+    move |key| {
+        matches!(
+            key,
+            KeyEvent {
+                code: KeyCode::Char(c),
+                modifiers: KeyModifiers::NONE
+            } if c == ch
+        )
     }
 }
 

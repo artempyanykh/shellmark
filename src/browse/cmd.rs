@@ -84,7 +84,7 @@ async fn event_loop(
             Some(_) => (false, app_state.clone()),
         },
         SystemEvent::User(Event::Key(k)) => {
-            let command = keybinds.process("normal", k);
+            let command = keybinds.process(app_state.mode, k);
             let result = match command {
                 None => HandleResult::Continue(app_state.clone()),
                 Some(command) => app_state.handle_command(&command).await?,
@@ -120,33 +120,47 @@ async fn event_loop(
 fn setup_keybindings() -> ModeMap<Command> {
     let mut mapping = ModeMap::new();
 
-    mapping.bind("normal", keys::ctrl_c, Command::ExitApp);
+    // Normal mode mappings
+    mapping.bind(Mode::Normal, keys::ctrl_c, Command::ExitApp);
 
     mapping.bind(
-        "normal",
+        Mode::Normal,
         |k| keys::ctrl_n(k) || keys::arrow_down(k),
         Command::MoveSel(MoveDirection::Down),
     );
 
     mapping.bind(
-        "normal",
+        Mode::Normal,
         |k| keys::ctrl_p(k) || keys::arrow_up(k),
         Command::MoveSel(MoveDirection::Up),
     );
 
-    mapping.bind("normal", keys::enter, Command::EnterSelDir);
+    mapping.bind(Mode::Normal, keys::enter, Command::EnterSelDir);
 
     mapping.bind(
-        "normal",
+        Mode::Normal,
         |k| keys::ctrl_k(k) || keys::ctrl_K(k),
-        Command::DelSelBookmark,
+        Command::EnterMode(Mode::PendingDelete),
     );
 
-    mapping.bind("normal", keys::backspace, Command::DeleteCharBack);
+    mapping.bind(Mode::Normal, keys::backspace, Command::DeleteCharBack);
 
-    mapping.bind("normal", keys::ctrl_backspace, Command::ClearInput);
+    mapping.bind(Mode::Normal, keys::ctrl_backspace, Command::ClearInput);
 
-    mapping.bind_with_input("normal", keys::any_char, |c| Command::InsertChar(c));
+    mapping.bind_with_input(Mode::Normal, keys::any_char, |c| Command::InsertChar(c));
+
+    // PendingDelete mode mappings
+    mapping.bind(Mode::PendingDelete, keys::ctrl_c, Command::ExitApp);
+    mapping.bind(
+        Mode::PendingDelete,
+        keys::char('y'),
+        Command::DelSelBookmark,
+    );
+    mapping.bind(
+        Mode::PendingDelete,
+        keys::char('n'),
+        Command::EnterMode(Mode::Normal),
+    );
 
     mapping
 }

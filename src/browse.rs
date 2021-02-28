@@ -166,6 +166,7 @@ pub struct BrowseState {
     pub matcher: Arc<SkimMatcherV2>,
     pub input: Input,
     pub selection: Selection,
+    pub mode: Mode,
     pub last_refresh_at: Option<Instant>,
 }
 
@@ -183,6 +184,7 @@ impl BrowseState {
             matcher,
             input,
             selection,
+            mode: Mode::Normal,
             last_refresh_at: None,
         }
     }
@@ -209,15 +211,13 @@ impl BrowseState {
                     Ok(HandleResult::Continue(self.clone()))
                 }
             }
-            Command::ConfirmDelSelBookmark => {
-                unimplemented!()
-            }
             Command::DelSelBookmark => {
                 let mut new_state = self.clone();
                 if let Some(bm) = new_state.selected_bookmark() {
                     new_state.remove_bookmark(&bm);
                     write_bookmarks(&new_state.bookmarks).await?;
                 }
+                new_state.enter_mode(Mode::Normal);
                 Ok(HandleResult::Continue(new_state))
             }
             Command::InsertChar(c) => {
@@ -254,6 +254,11 @@ impl BrowseState {
             Command::ShowHelp => {
                 unimplemented!()
             }
+            Command::EnterMode(mode) => {
+                let mut new_state = self.clone();
+                new_state.enter_mode(*mode);
+                Ok(HandleResult::Continue(new_state))
+            }
         }
     }
 
@@ -279,14 +284,17 @@ impl BrowseState {
         };
         self.selection = selection;
     }
+
+    pub fn enter_mode(&mut self, mode: Mode) {
+        self.mode = mode;
+    }
 }
 
 #[derive(Clone)]
 pub enum Command {
     ExitApp,
+    EnterMode(Mode),
     EnterSelDir,
-    #[allow(dead_code)]
-    ConfirmDelSelBookmark,
     DelSelBookmark,
     InsertChar(char),
     DeleteCharBack,
@@ -296,10 +304,19 @@ pub enum Command {
     ShowHelp,
 }
 
-#[allow(dead_code)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
     Normal,
     PendingDelete,
+}
+
+impl From<Mode> for &'static str {
+    fn from(mode: Mode) -> Self {
+        match mode {
+            Mode::Normal => "normal",
+            Mode::PendingDelete => "pending_delete",
+        }
+    }
 }
 
 pub enum Action {
