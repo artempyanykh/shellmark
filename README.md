@@ -9,6 +9,8 @@ The main features are:
 1. `shellmark add` to bookmark directories and files.
 2. `shellmark browse` to interactively search and act on bookmarks.
 
+Use `ctrl+k` on selected bookmark to delete it. (shellmark browse)
+
 ## Installation instructions
 
 ### From source
