@@ -15,6 +15,14 @@ Use `ctrl+k` on selected bookmark to delete it. (shellmark browse)
 
 ## Installation instructions
 
+### Pre-built binary
+
+1. Go to [Releases](https://github.com/artempyanykh/shellmark/releases) page
+   and download the binary for your OS.
+2. Rename the binary to remove the OS suffix, so it becomes just `shellmark`
+   or `shellmark.exe`.
+3. Drop the binary somewhere in your `PATH`.
+
 ### From source
 
 Make sure you have Rust toolchain set up (1.49+ should work). Then run the following commands:
