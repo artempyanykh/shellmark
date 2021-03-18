@@ -1,5 +1,7 @@
 # `shellmark`: bookmark manager for shell
 
+[![Build & Test](https://github.com/artempyanykh/shellmark/actions/workflows/push.yml/badge.svg?branch=main)](https://github.com/artempyanykh/shellmark/actions/workflows/push.yml)
+
 <img src="./assets/shellmark.gif" alt="Shellmark demonstration: CLI and TUI"/>
 
 > THIS IS AN EARLY ALPHA. It works for me, but requires better UX and more polish.
