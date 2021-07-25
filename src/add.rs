@@ -14,13 +14,13 @@ pub async fn add_cmd(add_cmd_opts: cli::AddCmd) -> Result<()> {
         Some(path_str) => fs::canonicalize(&path_str).await?,
         None => env::current_dir()?,
     };
-    let name = add_cmd_opts.name.unwrap_or(
+    let name = add_cmd_opts.name.unwrap_or_else(|| {
         // It's possible that the path is a root path (`/` or `C:\`) and file name N/A.
         // In this case just use dest's friendly path
         dest.file_name()
             .map(|f| f.to_string_lossy().to_string())
-            .unwrap_or(friendly_path(&dest)),
-    );
+            .unwrap_or_else(|| friendly_path(&dest))
+    });
     let mut bookmarks = read_bookmarks().await?;
     let existing = bookmarks.iter().enumerate().find(|(_, bm)| bm.name == name);
     let should_update = match existing {

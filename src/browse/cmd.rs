@@ -186,12 +186,7 @@ fn setup_keybindings() -> ModeMap<Command> {
         "Clear input",
     );
 
-    mapping.bind_with_input(
-        Mode::Normal,
-        keys::any_char(),
-        |c| Command::InsertChar(c),
-        None,
-    );
+    mapping.bind_with_input(Mode::Normal, keys::any_char(), Command::InsertChar, None);
 
     mapping.bind_with_desc(
         Mode::Normal,

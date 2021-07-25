@@ -26,7 +26,7 @@ pub fn find_matches(
     // Pick the matches starting from the "best" one
     let mut matches = Vec::new();
     for (idx, score) in &scores {
-        if let &Some(score) = score {
+        if let Some(score) = *score {
             if score > 0 {
                 matches.push(*idx);
             }
