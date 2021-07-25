@@ -9,8 +9,8 @@ use tui::{
 };
 
 use super::*;
-use crate::storage::friendly_path;
-use std::{io::Stderr, iter::FromIterator};
+use crate::{keys::ModeMap, storage::friendly_path};
+use std::{io::Stderr, iter::FromIterator, u16};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CursorLoc {
@@ -27,6 +27,7 @@ impl CursorLoc {
 pub fn draw_ui(
     terminal: &mut Terminal<CrosstermBackend<Stderr>>,
     new_state: &BrowseState,
+    keybinds: &ModeMap<Command>,
 ) -> Result<()> {
     let mut cursor_loc = CursorLoc::new(0, 0);
 
@@ -123,6 +124,10 @@ pub fn draw_ui(
             render_confirm_delete_dialog(f, block_inner);
         }
 
+        if new_state.mode == Mode::Help {
+            render_help_window(f, block_inner, keybinds, Mode::Normal);
+        }
+
         cursor_loc = CursorLoc::new(
             input_block_area.x + new_state.input.cursor,
             input_block_area.y,
@@ -130,7 +135,11 @@ pub fn draw_ui(
     })?;
 
     terminal.set_cursor(cursor_loc.x, cursor_loc.y)?;
-    terminal.show_cursor()?;
+    if new_state.mode == Mode::Normal {
+        terminal.show_cursor()?;
+    } else {
+        terminal.hide_cursor()?;
+    }
 
     Ok(())
 }
@@ -183,6 +192,48 @@ fn render_confirm_delete_dialog<B: Backend>(f: &mut Frame<B>, outer: Rect) {
 
     f.render_widget(Clear, dialog_chunk);
     f.render_widget(content, dialog_chunk);
+}
+
+fn render_help_window<B: Backend>(
+    f: &mut Frame<B>,
+    outer: Rect,
+    keybinds: &ModeMap<Command>,
+    mode: Mode,
+) {
+    let header_text = Span::styled(
+        "Key bindings",
+        Style::default()
+            .add_modifier(Modifier::BOLD)
+            .add_modifier(Modifier::UNDERLINED),
+    );
+
+    let mut descs = vec![];
+    if let Some(mode_map) = keybinds.map.get(mode.into()) {
+        for act in mode_map {
+            if let Some((combo_desc, action_desc)) = act.desc() {
+                descs.push(Spans::from(vec![
+                    Span::styled(combo_desc, Style::default().add_modifier(Modifier::BOLD)),
+                    Span::raw(": "),
+                    Span::raw(action_desc),
+                ]));
+            }
+        }
+    }
+
+    let mut lines = vec![
+        Span::raw("").into(),
+        header_text.into(),
+        Span::raw("").into(),
+    ];
+    lines.append(&mut descs);
+    lines.push(Span::raw("").into());
+
+    let content = Paragraph::new(lines)
+        .block(Block::default().borders(Borders::NONE))
+        .alignment(Alignment::Center);
+
+    f.render_widget(Clear, outer);
+    f.render_widget(content, outer);
 }
 
 fn colorize_match(str: &str, input: &[char]) -> Spans<'static> {

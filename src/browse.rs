@@ -1,6 +1,5 @@
 use std::{
     convert::From, iter::FromIterator, ops::Range, path::PathBuf, sync::Arc, time::Duration,
-    unimplemented,
 };
 
 use anyhow::Result;
@@ -251,9 +250,6 @@ impl BrowseState {
                     ..self.clone()
                 }))
             }
-            Command::ShowHelp => {
-                unimplemented!()
-            }
             Command::EnterMode(mode) => {
                 let mut new_state = self.clone();
                 new_state.enter_mode(*mode);
@@ -300,14 +296,13 @@ pub enum Command {
     DeleteCharBack,
     ClearInput,
     MoveSel(MoveDirection),
-    #[allow(dead_code)]
-    ShowHelp,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
     Normal,
     PendingDelete,
+    Help,
 }
 
 impl From<Mode> for &'static str {
@@ -315,6 +310,7 @@ impl From<Mode> for &'static str {
         match mode {
             Mode::Normal => "normal",
             Mode::PendingDelete => "pending_delete",
+            Mode::Help => "help",
         }
     }
 }

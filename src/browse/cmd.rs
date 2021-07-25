@@ -13,9 +13,12 @@ use tokio_stream::StreamExt;
 use tui::{backend::CrosstermBackend, Terminal};
 
 use super::*;
-use crate::bookmarks::read_bookmarks;
-use crate::keys;
-use crate::keys::ModeMap;
+use crate::keys::{self, arrow_up, ctrl_K, ctrl_p};
+use crate::keys::{ctrl_k, ModeMap};
+use crate::{
+    bookmarks::read_bookmarks,
+    keys::{arrow_down, ctrl_n},
+};
 
 pub async fn browse_cmd() -> Result<Option<Action>> {
     setup_terminal()?;
@@ -111,7 +114,7 @@ async fn event_loop(
     };
 
     if should_repaint {
-        ui::draw_ui(terminal, &new_state)?;
+        ui::draw_ui(terminal, &new_state, keybinds)?;
     }
 
     Ok(HandleResult::Continue(new_state))
@@ -121,45 +124,114 @@ fn setup_keybindings() -> ModeMap<Command> {
     let mut mapping = ModeMap::new();
 
     // Normal mode mappings
-    mapping.bind(Mode::Normal, keys::ctrl_c, Command::ExitApp);
+    mapping.bind(
+        Mode::Normal,
+        keys::ctrl_c(),
+        Command::ExitApp,
+        "Exit application",
+    );
 
     mapping.bind(
         Mode::Normal,
-        |k| keys::ctrl_n(k) || keys::arrow_down(k),
+        ctrl_n(),
         Command::MoveSel(MoveDirection::Down),
+        "Select next",
+    );
+    mapping.bind(
+        Mode::Normal,
+        arrow_down(),
+        Command::MoveSel(MoveDirection::Down),
+        "Select next",
     );
 
     mapping.bind(
         Mode::Normal,
-        |k| keys::ctrl_p(k) || keys::arrow_up(k),
+        ctrl_p(),
         Command::MoveSel(MoveDirection::Up),
+        "Select previous",
+    );
+    mapping.bind(
+        Mode::Normal,
+        arrow_up(),
+        Command::MoveSel(MoveDirection::Up),
+        "Select previous",
     );
 
-    mapping.bind(Mode::Normal, keys::enter, Command::EnterSelDir);
+    mapping.bind_with_desc(Mode::Normal, keys::enter(), Command::EnterSelDir, None);
 
     mapping.bind(
         Mode::Normal,
-        |k| keys::ctrl_k(k) || keys::ctrl_K(k),
+        ctrl_k(),
         Command::EnterMode(Mode::PendingDelete),
+        "Delete bookmark",
+    );
+    mapping.bind(
+        Mode::Normal,
+        ctrl_K(),
+        Command::EnterMode(Mode::PendingDelete),
+        "Delete bookmark",
     );
 
-    mapping.bind(Mode::Normal, keys::backspace, Command::DeleteCharBack);
+    mapping.bind_with_desc(
+        Mode::Normal,
+        keys::backspace(),
+        Command::DeleteCharBack,
+        None,
+    );
 
-    mapping.bind(Mode::Normal, keys::ctrl_backspace, Command::ClearInput);
+    mapping.bind(
+        Mode::Normal,
+        keys::ctrl_backspace(),
+        Command::ClearInput,
+        "Clear input",
+    );
 
-    mapping.bind_with_input(Mode::Normal, keys::any_char, |c| Command::InsertChar(c));
+    mapping.bind_with_input(
+        Mode::Normal,
+        keys::any_char(),
+        |c| Command::InsertChar(c),
+        None,
+    );
+
+    mapping.bind_with_desc(
+        Mode::Normal,
+        keys::f1(),
+        Command::EnterMode(Mode::Help),
+        None,
+    );
 
     // PendingDelete mode mappings
-    mapping.bind(Mode::PendingDelete, keys::ctrl_c, Command::ExitApp);
     mapping.bind(
+        Mode::PendingDelete,
+        keys::ctrl_c(),
+        Command::ExitApp,
+        "Exit",
+    );
+    mapping.bind_with_desc(
         Mode::PendingDelete,
         keys::char('y'),
         Command::DelSelBookmark,
+        None,
     );
-    mapping.bind(
+    mapping.bind_with_desc(
         Mode::PendingDelete,
         keys::char('n'),
         Command::EnterMode(Mode::Normal),
+        None,
+    );
+
+    // Help mode mappings
+    mapping.bind_with_desc(
+        Mode::Help,
+        keys::esc(),
+        Command::EnterMode(Mode::Normal),
+        None,
+    );
+    mapping.bind(
+        Mode::Help,
+        keys::ctrl_c(),
+        Command::ExitApp,
+        "Exit application",
     );
 
     mapping
