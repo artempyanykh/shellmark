@@ -39,7 +39,11 @@ pub fn draw_ui(
 
         let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(2), Constraint::Min(1)])
+            .constraints([
+                Constraint::Length(2),
+                Constraint::Min(1),
+                Constraint::Length(2),
+            ])
             .margin(0)
             .split(block_inner);
 
@@ -102,6 +106,17 @@ pub fn draw_ui(
         bookmarks_state.select(new_state.selection.selected);
 
         f.render_stateful_widget(bookmarks_tbl, list_area, &mut bookmarks_state);
+
+        // Render bottom bar
+        let bottom_area = chunks[2];
+        let bottom_block = Block::default().borders(Borders::TOP);
+        let bottom_block_area = bottom_block.inner(bottom_area);
+        f.render_widget(bottom_block, bottom_area);
+
+        f.render_widget(
+            Paragraph::new(Span::raw("[F1] Help")).alignment(Alignment::Left),
+            bottom_block_area,
+        );
 
         // Render confirmation dialog for bookmark delete
         if new_state.mode == Mode::PendingDelete {
