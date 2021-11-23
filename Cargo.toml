@@ -2,13 +2,13 @@
 name = "shellmark"
 version = "0.1.0"
 authors = ["Artem Pyanykh <artem.pyanykh@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 anyhow = "1.0"
-clap = "3.0.0-beta.2"
+clap = "3.0.0-beta.5"
 crossterm = {version = "0.19", features = ["event-stream"]}
 derivative = "2.2"
 directories = "3.0"

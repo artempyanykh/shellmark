@@ -21,7 +21,7 @@ pub fn friendly_path(path: &Path) -> String {
     let path = simplify_path(path);
 
     let home = USER_DIRS.home_dir();
-    let home_rel_path = path.strip_prefix(home).unwrap_or(&path);
+    let home_rel_path = path.strip_prefix(home).unwrap_or(path);
     let friendly_name = if home_rel_path.is_relative() {
         PathBuf::from("~")
             .join(home_rel_path)

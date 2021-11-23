@@ -1,10 +1,11 @@
 use std::{
-    convert::From, iter::FromIterator, ops::Range, path::PathBuf, sync::Arc, time::Duration,
+    convert::From, fmt::Display, iter::FromIterator, ops::Range, path::PathBuf, sync::Arc,
+    time::Duration,
 };
 
 use anyhow::Result;
 
-use derivative::Derivative;
+use derivative::*;
 
 use crossterm::event::Event;
 
@@ -72,9 +73,11 @@ impl Input {
 
         new_state
     }
+}
 
-    pub fn to_string(&self) -> String {
-        String::from_iter(&self.input)
+impl Display for Input {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", String::from_iter(&self.input))
     }
 }
 

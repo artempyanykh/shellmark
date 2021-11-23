@@ -1,7 +1,7 @@
 use crate::shell::{OutputType, OUTPUT_TYPES_STR};
-use clap::{crate_version, Clap};
+use clap::{crate_version, Parser};
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap(version = crate_version!())]
 /// Cross-platform CLI bookmarks manager.
 pub struct Opts {
@@ -12,7 +12,7 @@ pub struct Opts {
     pub out_type: OutputType,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum Command {
     /// (alias: a) Add bookmarks
     Add(AddCmd),
@@ -22,7 +22,7 @@ pub enum Command {
     Plug(PlugCmd),
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap(alias = "a")]
 pub struct AddCmd {
     #[clap(short, long)]
@@ -35,11 +35,11 @@ pub struct AddCmd {
     pub name: Option<String>,
 }
 
-#[derive(Clap, Default)]
+#[derive(Parser, Default)]
 #[clap(alias = "b")]
 pub struct BrowseCmd {}
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct PlugCmd {
     #[clap(short, long, default_value = "s")]
     /// Name of the shell alias

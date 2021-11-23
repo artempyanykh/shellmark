@@ -9,7 +9,7 @@ mod shell;
 mod storage;
 
 use anyhow::Result;
-use clap::Clap;
+use clap::Parser;
 use plug::plug_cmd;
 use shell::Output;
 

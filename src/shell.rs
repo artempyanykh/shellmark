@@ -1,4 +1,4 @@
-use clap::Clap;
+use clap::Parser;
 
 pub trait Output {
     fn to_output(&self, out_type: OutputType) -> Option<String>;
@@ -21,7 +21,7 @@ impl<A: Output> Output for Option<A> {
 
 pub const OUTPUT_TYPES_STR: &[&str] = &["plain", "posix", "fish", "powershell"];
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum OutputType {
     Plain,
     Posix,
