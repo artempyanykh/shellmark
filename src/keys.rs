@@ -138,7 +138,7 @@ pub fn any_char() -> Combo<char> {
         |key| match key {
             KeyEvent {
                 code: KeyCode::Char(c),
-                modifiers: KeyModifiers::NONE,
+                modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
             } => Some(c),
             _ => None,
         },
