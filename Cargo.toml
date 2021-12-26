@@ -8,7 +8,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
-clap = "3.0.0-beta.5"
+clap = { version = "3.0.0-rc.8", features = ["derive", "cargo"] }
 crossterm = {version = "0.19", features = ["event-stream"]}
 derivative = "2.2"
 directories = "3.0"
