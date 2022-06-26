@@ -4,8 +4,6 @@
 
 <img src="./assets/shellmark.gif" alt="Shellmark demonstration: CLI and TUI"/>
 
-> THIS IS AN EARLY ALPHA. It works for me, but requires better UX and more polish.
-
 `shellmark` is a cross-platform bookmark mananger for your shell. 
 The main features are:
 1. `shellmark add` to bookmark directories and files.
