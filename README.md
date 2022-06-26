@@ -21,6 +21,12 @@ Use `ctrl+k` on selected bookmark to delete it. (shellmark browse)
    or `shellmark.exe`.
 3. Drop the binary somewhere in your `PATH`.
 
+### `cargo install`
+
+1. Run `cargo install shellmark`.
+2. The binary will be built and installed under a local Cargo folder, usually `$HOME/.cargo/bin`. 
+   Make sure this directory is in your `PATH`.
+
 ### From source
 
 Make sure you have Rust toolchain set up (1.49+ should work). Then run the following commands:
