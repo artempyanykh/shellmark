@@ -206,6 +206,36 @@ pub fn ctrl_p() -> Combo<()> {
     )
 }
 
+pub fn ctrl_o() -> Combo<()> {
+    Combo::with_match(
+        |key: KeyEvent| {
+            matches!(
+                key,
+                KeyEvent {
+                    code: KeyCode::Char('o'),
+                    modifiers: KeyModifiers::CONTROL
+                }
+            )
+        },
+        Some("C-o".to_string()),
+    )
+}
+
+pub fn ctrl_j() -> Combo<()> {
+    Combo::with_match(
+        |key: KeyEvent| {
+            matches!(
+                key,
+                KeyEvent {
+                    code: KeyCode::Char('j'),
+                    modifiers: KeyModifiers::CONTROL
+                }
+            )
+        },
+        Some("C-j".to_string()),
+    )
+}
+
 pub fn ctrl_k() -> Combo<()> {
     Combo::with_match(
         |key: KeyEvent| {

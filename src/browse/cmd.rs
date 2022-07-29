@@ -157,7 +157,26 @@ fn setup_keybindings() -> ModeMap<Command> {
         "Select previous",
     );
 
-    mapping.bind_with_desc(Mode::Normal, keys::enter(), Command::EnterSelDir, None);
+    mapping.bind(
+        Mode::Normal,
+        keys::enter(),
+        Command::DefaultAction,
+        "Run the default action",
+    );
+
+    mapping.bind(
+        Mode::Normal,
+        keys::ctrl_j(),
+        Command::EnterSelDir,
+        "Jump to the bookmarked directory",
+    );
+
+    mapping.bind(
+        Mode::Normal,
+        keys::ctrl_o(),
+        Command::OpenSelInEditor,
+        "Open the bookmarked location in $EDITOR",
+    );
 
     mapping.bind(
         Mode::Normal,

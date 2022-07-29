@@ -1,3 +1,5 @@
+use std::env;
+
 use clap::Parser;
 
 pub trait Output {
@@ -64,5 +66,12 @@ impl std::str::FromStr for OutputType {
                 OUTPUT_TYPES_STR.join(", "),
             )),
         }
+    }
+}
+
+pub(crate) fn is_editor_set() -> bool {
+    match env::var("EDITOR") {
+        Ok(editor) => !editor.is_empty(),
+        _ => false,
     }
 }

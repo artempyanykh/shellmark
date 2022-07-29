@@ -14,7 +14,8 @@ use tokio::{fs, time::Instant};
 
 use crate::{
     bookmarks::{write_bookmarks, Bookmark},
-    search, shell,
+    search,
+    shell::{self, is_editor_set},
     storage::simplify_path,
 };
 
@@ -194,6 +195,42 @@ impl BrowseState {
     pub async fn handle_command(&self, cmd: &Command) -> Result<HandleResult> {
         match cmd {
             Command::ExitApp => Ok(HandleResult::Terminate(None)),
+            Command::DefaultAction => {
+                if let Some(bm) = self.selected_bookmark() {
+                    let meta = fs::metadata(&bm.dest).await?;
+                    if meta.is_file() {
+                        if is_editor_set() {
+                            Ok(HandleResult::Terminate(Some(Action::OpenInEditorAction {
+                                dest: bm.dest.clone(),
+                            })))
+                        } else {
+                            let dest = bm
+                                .dest
+                                .parent()
+                                .expect("File doesn't have a parent dir")
+                                .to_path_buf();
+                            Ok(HandleResult::Terminate(Some(Action::ChangeDirAction {
+                                dest,
+                            })))
+                        }
+                    } else {
+                        Ok(HandleResult::Terminate(Some(Action::ChangeDirAction {
+                            dest: bm.dest.clone(),
+                        })))
+                    }
+                } else {
+                    Ok(HandleResult::Continue(self.clone()))
+                }
+            }
+            Command::OpenSelInEditor => {
+                if let Some(bm) = self.selected_bookmark() {
+                    Ok(HandleResult::Terminate(Some(Action::OpenInEditorAction {
+                        dest: bm.dest.clone(),
+                    })))
+                } else {
+                    Ok(HandleResult::Continue(self.clone()))
+                }
+            }
             Command::EnterSelDir => {
                 if let Some(bm) = self.selected_bookmark() {
                     let meta = fs::metadata(&bm.dest).await?;
@@ -294,6 +331,8 @@ pub enum Command {
     ExitApp,
     EnterMode(Mode),
     EnterSelDir,
+    OpenSelInEditor,
+    DefaultAction,
     DelSelBookmark,
     InsertChar(char),
     DeleteCharBack,
@@ -320,6 +359,7 @@ impl From<Mode> for &'static str {
 
 pub enum Action {
     ChangeDirAction { dest: PathBuf },
+    OpenInEditorAction { dest: PathBuf },
 }
 
 impl shell::Output for Action {
@@ -335,6 +375,32 @@ impl shell::Output for Action {
                     Posix | Fish => format!("cd {}", dest_string),
                     PowerShell => format!("Push-Location '{}'", dest_string),
                 };
+                Some(out)
+            }
+            Action::OpenInEditorAction { dest } => {
+                let out = if is_editor_set() {
+                    let dest_string = simplify_path(dest).to_string_lossy();
+                    match out_type {
+                        Plain => dest_string.to_string(),
+                        Posix | Fish => format!("$EDITOR '{}'", dest_string),
+                        PowerShell => {
+                            "Write-Out 'OpenInEditorAction is not implemented for PowerShell'"
+                                .to_string()
+                        }
+                    }
+                } else {
+                    match out_type {
+                        Plain => "$EDITOR environment variable is not set".to_string(),
+                        Posix | Fish => {
+                            "echo \"\\$EDITOR environment variable is not set\"".to_string()
+                        }
+                        PowerShell => {
+                            "Write-Out 'OpenInEditorAction is not implemented for PowerShell'"
+                                .to_string()
+                        }
+                    }
+                };
+
                 Some(out)
             }
         }
