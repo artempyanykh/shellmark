@@ -114,8 +114,29 @@ pub fn draw_ui(
         let bottom_block_area = bottom_block.inner(bottom_area);
         f.render_widget(bottom_block, bottom_area);
 
+        let key_style = Style::default().add_modifier(Modifier::BOLD);
+        let key_desk_style = Style::default().add_modifier(Modifier::ITALIC);
+        let help_text = Spans::from(vec![
+            Span::styled("[F1]", key_style),
+            Span::raw(" "),
+            Span::styled("Help", key_desk_style),
+            Span::raw(" "),
+            Span::styled("[Enter]", key_style),
+            Span::raw(" "),
+            Span::styled("DWIM", key_desk_style),
+            Span::raw(" "),
+            Span::styled("[C-j]", key_style),
+            Span::raw(" "),
+            Span::styled("Jump", key_desk_style),
+            Span::raw(" "),
+            Span::styled("[C-o]", key_style),
+            Span::raw(" "),
+            Span::styled("Edit", key_desk_style),
+        ]);
+
         f.render_widget(
-            Paragraph::new(Span::raw("[F1] Help")).alignment(Alignment::Left),
+            Paragraph::new(help_text)
+            .alignment(Alignment::Left),
             bottom_block_area,
         );
 
