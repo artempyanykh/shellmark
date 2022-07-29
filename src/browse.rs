@@ -378,15 +378,12 @@ impl shell::Output for Action {
                 Some(out)
             }
             Action::OpenInEditorAction { dest } => {
+                let dest_string = simplify_path(dest).to_string_lossy();
                 let out = if is_editor_set() {
-                    let dest_string = simplify_path(dest).to_string_lossy();
                     match out_type {
                         Plain => dest_string.to_string(),
                         Posix | Fish => format!("$EDITOR '{}'", dest_string),
-                        PowerShell => {
-                            "Write-Out 'OpenInEditorAction is not implemented for PowerShell'"
-                                .to_string()
-                        }
+                        PowerShell => format!("Push-Location '{}'", dest_string),
                     }
                 } else {
                     match out_type {
@@ -394,10 +391,7 @@ impl shell::Output for Action {
                         Posix | Fish => {
                             "echo \"\\$EDITOR environment variable is not set\"".to_string()
                         }
-                        PowerShell => {
-                            "Write-Out 'OpenInEditorAction is not implemented for PowerShell'"
-                                .to_string()
-                        }
+                        PowerShell => format!("Push-Location '{}'", dest_string),
                     }
                 };
 
