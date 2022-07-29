@@ -100,7 +100,7 @@ pub fn draw_ui(
         let bookmarks_tbl = Table::new(rows)
             .block(Block::default())
             .column_spacing(1)
-            .widths(&[Constraint::Min(20), Constraint::Min(20)])
+            .widths(&[Constraint::Min(20), Constraint::Min(80)])
             .highlight_symbol(">> ")
             .highlight_style(Style::default().add_modifier(Modifier::BOLD));
         let mut bookmarks_state = TableState::default();
