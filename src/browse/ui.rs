@@ -225,15 +225,16 @@ fn render_help_window<B: Backend>(
     // Prepare basic layout
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .margin(1)
         .constraints([
             Constraint::Length(1),
             Constraint::Length(1),
-            Constraint::Percentage(100),
+            Constraint::Min(1),
+            Constraint::Length(2),
         ])
         .split(outer);
     let header_chunk = chunks[0];
     let table_chunk = chunks[2];
+    let bottom_chunk = chunks[3];
 
     // Render the header
     let header_text = Span::styled(
@@ -274,6 +275,24 @@ fn render_help_window<B: Backend>(
 
     f.render_widget(table_left, table_left_chunk);
     f.render_widget(table_right, table_right_chunk);
+
+    // Render bottom bar
+    let bottom_block = Block::default().borders(Borders::TOP);
+    let bottom_block_area = bottom_block.inner(bottom_chunk);
+    f.render_widget(bottom_block, bottom_chunk);
+
+    let key_style = Style::default().add_modifier(Modifier::BOLD);
+    let key_desk_style = Style::default().add_modifier(Modifier::ITALIC);
+    let help_text = Spans::from(vec![
+        Span::styled("[Esc]", key_style),
+        Span::raw(" "),
+        Span::styled("Exit", key_desk_style),
+    ]);
+
+    f.render_widget(
+        Paragraph::new(help_text).alignment(Alignment::Left),
+        bottom_block_area,
+    );
 }
 
 fn colorize_match(str: &str, input: &[char]) -> Spans<'static> {
