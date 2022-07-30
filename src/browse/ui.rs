@@ -135,8 +135,7 @@ pub fn draw_ui(
         ]);
 
         f.render_widget(
-            Paragraph::new(help_text)
-            .alignment(Alignment::Left),
+            Paragraph::new(help_text).alignment(Alignment::Left),
             bottom_block_area,
         );
 
@@ -221,40 +220,60 @@ fn render_help_window<B: Backend>(
     keybinds: &ModeMap<Command>,
     mode: Mode,
 ) {
+    f.render_widget(Clear, outer);
+
+    // Prepare basic layout
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(1)
+        .constraints([
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Percentage(100),
+        ])
+        .split(outer);
+    let header_chunk = chunks[0];
+    let table_chunk = chunks[2];
+
+    // Render the header
     let header_text = Span::styled(
         "Key bindings",
         Style::default()
             .add_modifier(Modifier::BOLD)
             .add_modifier(Modifier::UNDERLINED),
     );
-
-    let mut descs = vec![];
-    if let Some(mode_map) = keybinds.map.get(mode.into()) {
-        for act in mode_map {
-            if let Some((combo_desc, action_desc)) = act.desc() {
-                descs.push(Spans::from(vec![
-                    Span::styled(combo_desc, Style::default().add_modifier(Modifier::BOLD)),
-                    Span::raw(": "),
-                    Span::raw(action_desc),
-                ]));
-            }
-        }
-    }
-
-    let mut lines = vec![
-        Span::raw("").into(),
-        header_text.into(),
-        Span::raw("").into(),
-    ];
-    lines.append(&mut descs);
-    lines.push(Span::raw("").into());
-
-    let content = Paragraph::new(lines)
+    let header = Paragraph::new(Spans::from(header_text))
         .block(Block::default().borders(Borders::NONE))
         .alignment(Alignment::Center);
 
-    f.render_widget(Clear, outer);
-    f.render_widget(content, outer);
+    f.render_widget(header, header_chunk);
+
+    // Render the key bindings
+    let table_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([Constraint::Ratio(1, 2), Constraint::Ratio(1, 2)])
+        .split(table_chunk);
+    let table_left_chunk = table_chunks[0];
+    let table_right_chunk = table_chunks[1];
+
+    let mut table_left_lines = vec![];
+    let mut table_right_lines = vec![];
+    for (combo_desc, action_desc) in keybinds.descriptions(mode) {
+        let combo_line = Spans::from(vec![
+            Span::styled(combo_desc, Style::default().add_modifier(Modifier::BOLD)),
+            Span::from(": "),
+        ]);
+        table_left_lines.push(combo_line);
+
+        let action_line = Spans::from(action_desc);
+        table_right_lines.push(action_line);
+    }
+
+    let table_left = Paragraph::new(table_left_lines).alignment(Alignment::Right);
+    let table_right = Paragraph::new(table_right_lines).alignment(Alignment::Left);
+
+    f.render_widget(table_left, table_left_chunk);
+    f.render_widget(table_right, table_right_chunk);
 }
 
 fn colorize_match(str: &str, input: &[char]) -> Spans<'static> {

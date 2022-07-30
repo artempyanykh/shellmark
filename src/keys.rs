@@ -128,6 +128,19 @@ impl<C: Clone + 'static> ModeMap<C> {
 
         None
     }
+
+    pub fn descriptions<M: Into<&'static str>>(&self, mode: M) -> Vec<(&str, &str)> {
+        let mut descs = vec![];
+        if let Some(mapping) = self.map.get(mode.into()) {
+            for act in mapping {
+                if let Some((combo_desc, action_desc)) = act.desc() {
+                    descs.push((combo_desc, action_desc));
+                }
+            }
+        }
+
+        descs
+    }
 }
 
 // Common keybindings
