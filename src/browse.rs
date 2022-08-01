@@ -372,7 +372,7 @@ impl shell::Output for Action {
 
                 let out = match out_type {
                     Plain => dest_string.to_string(),
-                    Posix | Fish => format!("cd {}", dest_string),
+                    Posix | Fish => format!("cd '{}'", dest_string),
                     PowerShell => format!("Push-Location '{}'", dest_string),
                 };
                 Some(out)
