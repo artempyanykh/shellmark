@@ -9,7 +9,13 @@ The main features are:
 1. `shellmark add` to bookmark directories and files.
 2. `shellmark browse` to interactively search and act on bookmarks.
 
-Use `ctrl+k` on selected bookmark to delete it. (shellmark browse)
+## How to use
+
+1. Install `shellmark` following [installation instructions below](#installation-instructions).
+   Make sure `shellmark` is in your `PATH`.
+2. Integrate `shellmark` with your shell following [integration instructions below](#integration-with-shell).
+   This will add a shell alias `s`. The name of the alias is configurable. Run `shellmark plug --help` to learn more.
+3. Invoke `shellmark` via `s` shell alias.
 
 ## Installation instructions
 
