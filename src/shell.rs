@@ -24,18 +24,16 @@ impl<A: Output> Output for Option<A> {
 pub const OUTPUT_TYPES_STR: &[&str] = &["plain", "posix", "fish", "powershell"];
 
 #[derive(Parser)]
+#[derive(Default)]
 pub enum OutputType {
+    #[default]
     Plain,
     Posix,
     Fish,
     PowerShell,
 }
 
-impl Default for OutputType {
-    fn default() -> Self {
-        OutputType::Plain
-    }
-}
+
 
 impl OutputType {
     pub const fn to_str(&self) -> &'static str {
