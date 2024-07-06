@@ -15,7 +15,7 @@ homepage = "https://github.com/artempyanykh/shellmark"
 [dependencies]
 anyhow = "1.0"
 clap = {version = "4.5.0", features = ["derive", "cargo"]}
-crossterm = {version = "0.23", features = ["event-stream"]}
+crossterm = {version = "0.27", features = ["event-stream"]}
 derivative = "2.2"
 directories = "4.0"
 futures = "0.3"

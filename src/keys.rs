@@ -152,6 +152,7 @@ pub fn any_char() -> Combo<char> {
             KeyEvent {
                 code: KeyCode::Char(c),
                 modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
+                ..
             } => Some(c),
             _ => None,
         },
@@ -166,7 +167,8 @@ pub fn char(ch: char) -> Combo<()> {
                 key,
                 KeyEvent {
                     code: KeyCode::Char(c),
-                    modifiers: KeyModifiers::NONE
+                    modifiers: KeyModifiers::NONE,
+                    ..
                 } if c == ch
             )
         },
@@ -181,7 +183,8 @@ pub fn ctrl_c() -> Combo<()> {
                 key,
                 KeyEvent {
                     code: KeyCode::Char('c'),
-                    modifiers: KeyModifiers::CONTROL
+                    modifiers: KeyModifiers::CONTROL,
+                    ..
                 }
             )
         },
@@ -196,7 +199,8 @@ pub fn ctrl_n() -> Combo<()> {
                 key,
                 KeyEvent {
                     code: KeyCode::Char('n'),
-                    modifiers: KeyModifiers::CONTROL
+                    modifiers: KeyModifiers::CONTROL,
+                    ..
                 }
             )
         },
@@ -211,7 +215,8 @@ pub fn ctrl_p() -> Combo<()> {
                 key,
                 KeyEvent {
                     code: KeyCode::Char('p'),
-                    modifiers: KeyModifiers::CONTROL
+                    modifiers: KeyModifiers::CONTROL,
+                    ..
                 }
             )
         },
@@ -226,7 +231,8 @@ pub fn ctrl_o() -> Combo<()> {
                 key,
                 KeyEvent {
                     code: KeyCode::Char('o'),
-                    modifiers: KeyModifiers::CONTROL
+                    modifiers: KeyModifiers::CONTROL,
+                    ..
                 }
             )
         },
@@ -241,7 +247,8 @@ pub fn ctrl_j() -> Combo<()> {
                 key,
                 KeyEvent {
                     code: KeyCode::Char('j'),
-                    modifiers: KeyModifiers::CONTROL
+                    modifiers: KeyModifiers::CONTROL,
+                    ..
                 }
             )
         },
@@ -256,7 +263,8 @@ pub fn ctrl_k() -> Combo<()> {
                 key,
                 KeyEvent {
                     code: KeyCode::Char('k'),
-                    modifiers: KeyModifiers::CONTROL
+                    modifiers: KeyModifiers::CONTROL,
+                    ..
                 }
             )
         },
@@ -272,7 +280,8 @@ pub fn ctrl_K() -> Combo<()> {
                 key,
                 KeyEvent {
                     code: KeyCode::Char('K'),
-                    modifiers: KeyModifiers::CONTROL
+                    modifiers: KeyModifiers::CONTROL,
+                    ..
                 }
             )
         },
@@ -287,7 +296,8 @@ pub fn arrow_down() -> Combo<()> {
                 key,
                 KeyEvent {
                     code: KeyCode::Down,
-                    modifiers: KeyModifiers::NONE
+                    modifiers: KeyModifiers::NONE,
+                    ..
                 }
             )
         },
@@ -302,7 +312,8 @@ pub fn arrow_up() -> Combo<()> {
                 key,
                 KeyEvent {
                     code: KeyCode::Up,
-                    modifiers: KeyModifiers::NONE
+                    modifiers: KeyModifiers::NONE,
+                    ..
                 }
             )
         },
@@ -317,7 +328,8 @@ pub fn enter() -> Combo<()> {
                 key,
                 KeyEvent {
                     code: KeyCode::Enter,
-                    modifiers: KeyModifiers::NONE
+                    modifiers: KeyModifiers::NONE,
+                    ..
                 }
             )
         },
@@ -332,7 +344,8 @@ pub fn backspace() -> Combo<()> {
                 key,
                 KeyEvent {
                     code: KeyCode::Backspace,
-                    modifiers: KeyModifiers::NONE
+                    modifiers: KeyModifiers::NONE,
+                    ..
                 }
             )
         },
@@ -347,7 +360,8 @@ pub fn ctrl_backspace() -> Combo<()> {
                 key,
                 KeyEvent {
                     code: KeyCode::Backspace,
-                    modifiers: KeyModifiers::CONTROL
+                    modifiers: KeyModifiers::CONTROL,
+                    ..
                 }
             )
         },
@@ -362,7 +376,8 @@ pub fn f1() -> Combo<()> {
                 key,
                 KeyEvent {
                     code: KeyCode::F(1),
-                    modifiers: KeyModifiers::NONE
+                    modifiers: KeyModifiers::NONE,
+                    ..
                 }
             )
         },
@@ -377,7 +392,8 @@ pub fn esc() -> Combo<()> {
                 key,
                 KeyEvent {
                     code: KeyCode::Esc,
-                    modifiers: KeyModifiers::NONE
+                    modifiers: KeyModifiers::NONE,
+                    ..
                 }
             )
         },
