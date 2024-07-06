@@ -10,7 +10,7 @@ use tui::{
 
 use super::*;
 use crate::{keys::ModeMap, storage::friendly_path};
-use std::{io::Stderr, iter::FromIterator, u16};
+use std::{io::Stderr, iter::FromIterator};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CursorLoc {

@@ -1,6 +1,6 @@
 use std::env;
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 
 pub trait Output {
     fn to_output(&self, out_type: OutputType) -> Option<String>;
@@ -21,50 +21,14 @@ impl<A: Output> Output for Option<A> {
     }
 }
 
-pub const OUTPUT_TYPES_STR: &[&str] = &["plain", "posix", "fish", "powershell"];
-
-#[derive(Parser)]
-#[derive(Default)]
+#[derive(Parser, Default, Copy, Clone, ValueEnum)]
 pub enum OutputType {
     #[default]
     Plain,
     Posix,
     Fish,
+    #[clap(name = "powershell")]
     PowerShell,
-}
-
-
-
-impl OutputType {
-    pub const fn to_str(&self) -> &'static str {
-        use OutputType::*;
-
-        match self {
-            Plain => "plain",
-            Posix => "posix",
-            Fish => "fish",
-            PowerShell => "powershell",
-        }
-    }
-}
-
-impl std::str::FromStr for OutputType {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        use OutputType::*;
-        match s {
-            "plain" => Ok(Plain),
-            "posix" => Ok(Posix),
-            "fish" => Ok(Fish),
-            "powershell" => Ok(PowerShell),
-            _ => Err(format!(
-                "Unexpected out: {}. Possible values are: {}",
-                s,
-                OUTPUT_TYPES_STR.join(", "),
-            )),
-        }
-    }
 }
 
 pub(crate) fn is_editor_set() -> bool {
