@@ -43,19 +43,24 @@ pub fn simplify_path(path: &Path) -> &Path {
     dunce::simplified(path)
 }
 
+fn data_dir() -> PathBuf {
+    PROJECT_DIRS.data_local_dir().to_path_buf()
+}
 pub async fn get_or_create_data_dir() -> Result<PathBuf> {
-    let proj_dirs = &PROJECT_DIRS;
-    let data_local_dir = proj_dirs.data_local_dir();
+    let data_local_dir = data_dir();
 
-    if let Err(code) = fs::metadata(data_local_dir).await.map_err(|err| err.kind()) {
+    if let Err(code) = fs::metadata(&data_local_dir)
+        .await
+        .map_err(|err| err.kind())
+    {
         match code {
             std::io::ErrorKind::NotFound => {
                 info!(
                     "Creating a data folder for shellmark at: {}",
-                    friendly_path(data_local_dir)
+                    friendly_path(&data_local_dir)
                 );
 
-                fs::create_dir_all(data_local_dir).await.context(
+                fs::create_dir_all(&data_local_dir).await.context(
                     "Couldn't create a data folder for shellmark. Please, check the access rights.",
                 )?;
 
@@ -67,5 +72,5 @@ pub async fn get_or_create_data_dir() -> Result<PathBuf> {
         }
     }
 
-    Ok(data_local_dir.to_path_buf())
+    Ok(data_local_dir)
 }
