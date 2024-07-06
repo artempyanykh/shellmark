@@ -1,15 +1,13 @@
-use crate::shell::{OutputType, OUTPUT_TYPES_STR};
+use crate::shell::OutputType;
 use clap::{crate_version, Parser};
 
 #[derive(Parser)]
-#[clap(version = crate_version!())]
+#[command(version = crate_version!())]
 /// Cross-platform CLI bookmarks manager.
 pub struct Opts {
-    #[clap(subcommand)]
+    #[command(subcommand)]
     pub command: Option<Command>,
-    #[clap(
-        short = 'o', long = "out", possible_values = OUTPUT_TYPES_STR, default_value = OutputType::Plain.to_str()
-    )]
+    #[arg(short = 'o', long = "out", value_enum, default_value_t = OutputType::Plain)]
     /// Output result as plain text or as eval-able command for one of the shells
     pub out_type: OutputType,
 }
@@ -27,25 +25,25 @@ pub enum Command {
 }
 
 #[derive(Parser)]
-#[clap(alias = "a")]
+#[command(alias = "a")]
 pub struct AddCmd {
-    #[clap(short, long)]
+    #[arg(short, long)]
     /// Replace the bookmark's destination when similarly named bookmark exists
     pub force: bool,
     /// Path to the destination file or directory (default: current directory)
     pub dest: Option<String>,
     /// Name of the bookmark (default: the name of the destination)
-    #[clap(short, long)]
+    #[arg(short, long)]
     pub name: Option<String>,
 }
 
 #[derive(Parser, Default)]
-#[clap(alias = "b")]
+#[command(alias = "b")]
 pub struct BrowseCmd {}
 
 #[derive(Parser)]
 pub struct PlugCmd {
-    #[clap(short, long, default_value = "s")]
+    #[arg(short, long, default_value = "s")]
     /// Name of the shell alias
     pub name: String,
 }
