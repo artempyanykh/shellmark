@@ -93,7 +93,7 @@ impl<C: Clone + 'static> ModeMap<C> {
         let binding = Binding::new(combo, act, desc);
         self.map
             .entry(mode.into())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(Box::new(binding));
     }
 
@@ -106,7 +106,7 @@ impl<C: Clone + 'static> ModeMap<C> {
 
         self.map
             .entry(mode.into())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(Box::new(binding));
     }
 
