@@ -2,6 +2,7 @@ mod add;
 mod bookmarks;
 mod browse;
 mod cli;
+mod diag;
 mod keys;
 mod plug;
 mod search;
@@ -21,6 +22,8 @@ use tracing_subscriber::EnvFilter;
 
 use crate::add::add_cmd;
 use crate::browse::browse_cmd;
+use crate::cli::Command;
+use crate::diag::diag_cmd;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -38,6 +41,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         Some(cli::Command::Browse(_)) => browse_cmd().await?.to_output(opts.out_type),
         Some(cli::Command::Plug(plug_cmd_opts)) => plug_cmd(plug_cmd_opts).to_output(opts.out_type),
         None => browse_cmd().await?.to_output(opts.out_type),
+        Some(Command::Diag(_)) => diag_cmd().await?.to_output(opts.out_type),
     };
 
     if let Some(output) = output {

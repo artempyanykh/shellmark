@@ -7,8 +7,10 @@ use clap::{crate_version, Parser};
 pub struct Opts {
     #[clap(subcommand)]
     pub command: Option<Command>,
-    #[clap(short = 'o', long = "out", possible_values = OUTPUT_TYPES_STR, default_value = OutputType::Plain.to_str())]
-    /// Output result as plain text or as evalable command for one of the shells
+    #[clap(
+        short = 'o', long = "out", possible_values = OUTPUT_TYPES_STR, default_value = OutputType::Plain.to_str()
+    )]
+    /// Output result as plain text or as eval-able command for one of the shells
     pub out_type: OutputType,
 }
 
@@ -20,6 +22,8 @@ pub enum Command {
     Browse(BrowseCmd),
     /// Output a command string to integrate shellmark into the shell
     Plug(PlugCmd),
+    /// Print storage location and other diagnostics
+    Diag(DiagCmd),
 }
 
 #[derive(Parser)]
@@ -45,3 +49,6 @@ pub struct PlugCmd {
     /// Name of the shell alias
     pub name: String,
 }
+
+#[derive(Parser)]
+pub struct DiagCmd {}
